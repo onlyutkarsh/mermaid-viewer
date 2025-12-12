@@ -3,7 +3,7 @@
   "displayName": "Mermaid Preview with Themes",
   "description": "Preview Mermaid diagrams with custom theme selection independent of VSCode theme",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "onlyutkarsh",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -22,17 +22,32 @@
     "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/onlyutkarsh/mermaid-preview-extension.git"
+  },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#F2F2F2",
+    "theme": "light"
+  },
   "contributes": {
     "commands": [
       {
         "command": "mermaid-preview.showPreview",
         "title": "Mermaid: Open Preview",
-        "icon": "$(graph)"
+        "icon": {
+          "light": "media/mermaid-gutter.svg",
+          "dark": "media/mermaid-gutter.svg"
+        }
       },
       {
         "command": "mermaid-preview.showPreviewToSide",
         "title": "Mermaid: Open Preview to the Side",
-        "icon": "$(graph)"
+        "icon": {
+          "light": "media/mermaid-gutter.svg",
+          "dark": "media/mermaid-gutter.svg"
+        }
       },
       {
         "command": "mermaid-preview.showDiagramAtPosition",
@@ -116,14 +131,19 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "deploy": "vsce publish",
+    "publish:ovsx": "ovsx publish"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.32.0",
     "eslint": "^8.0.0",
+    "ovsx": "^0.8.4",
     "typescript": "^5.3.0"
   },
   "dependencies": {

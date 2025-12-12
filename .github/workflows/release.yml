@@ -1,0 +1,176 @@
+name: Release to Marketplace
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number (e.g., 0.2.0)"
+        required: true
+        type: string
+
+run-name: Release v${{ inputs.version }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.actor == 'onlyutkarsh'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: npm
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate version format
+        run: |
+          if ! [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format X.Y.Z (e.g., 0.2.0)"
+            exit 1
+          fi
+
+      - name: Check if tag already exists
+        run: |
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Error: Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Update package.json version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if [ "$CURRENT_VERSION" != "${{ inputs.version }}" ]; then
+            npm version ${{ inputs.version }} --no-git-tag-version
+          else
+            echo "Version is already ${{ inputs.version }}, skipping version update"
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Compile TypeScript
+        run: npm run compile
+
+      - name: Build extension
+        run: npm run package
+
+      - name: Publish to Open VSX Registry
+        id: publish_ovsx
+        continue-on-error: true
+        run: npm run publish:ovsx
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Publish to VS Marketplace
+        id: publish_vsmarketplace
+        continue-on-error: true
+        run: npm run deploy
+        env:
+          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+
+      - name: Check publishing results
+        run: |
+          if [ "${{ steps.publish_ovsx.outcome }}" == "failure" ]; then
+            echo "⚠️ Open VSX publishing failed (version may already exist)"
+          fi
+          if [ "${{ steps.publish_vsmarketplace.outcome }}" == "failure" ]; then
+            echo "⚠️ VS Marketplace publishing failed (version may already exist)"
+          fi
+          if [ "${{ steps.publish_ovsx.outcome }}" == "failure" ] && [ "${{ steps.publish_vsmarketplace.outcome }}" == "failure" ]; then
+            echo "❌ Both publishing steps failed. Please check the logs."
+            exit 1
+          fi
+
+      - name: Commit version bump
+        run: |
+          git add package.json package-lock.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit, skipping"
+          else
+            git commit -m "chore(release): v${{ inputs.version }}"
+            git push origin main
+          fi
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${{ inputs.version }}"
+          CHANGELOG_CONTENT=$(awk "/^## \[${VERSION}\]/,/^## \[/" CHANGELOG.md | sed '1d;$d' || echo "")
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            echo "No changelog entry found for version ${VERSION}"
+            echo "changelog_body=" >> $GITHUB_OUTPUT
+          else
+            echo "changelog_body<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate release notes
+        id: release_notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: 'v${{ inputs.version }}'
+            });
+            return data.body;
+          result-encoding: string
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ inputs.version }}
+          name: Release v${{ inputs.version }}
+          draft: false
+          prerelease: false
+          files: "*.vsix"
+          body: |
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.changelog_body }}
+
+            ## All Changes
+
+            ${{ steps.release_notes.outputs.result }}
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "### Release Summary :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.publish_ovsx.outcome }}" == "success" ]; then
+            echo "✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Open VSX Registry publishing failed or skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ steps.publish_vsmarketplace.outcome }}" == "success" ]; then
+            echo "✅ Published to VS Marketplace" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ VS Marketplace publishing failed or skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
