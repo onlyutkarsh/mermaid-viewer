@@ -13,124 +13,21 @@ config:
     nodePlacementStrategy: LINEAR_SEGMENTS
 ---
 erDiagram
-    ClipType ||--o{ Clip : "defines clip category | ClipType.Id -> Clip.ClipTypeId"
-    ClipType {
-        int Id PK "Identity primary key"
-        varchar(30) Name "Clip type [Static: 1=Name, 2=Question]"
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ LINE-ITEM : contains
+    CUSTOMER {
+        string name
+        string email
+        int id
     }
-   
-    KeyingAgencyType ||--o{ KeyingAgency : "categorizes keying workflow | KeyingAgencyType.Id -> KeyingAgency.KeyingAgencyTypeId"
-    KeyingAgencyType {
-        int Id PK "Identity primary key"
-        varchar(100) Name "Keying stage [Static: 1=Name, 2=Question, 3=AI]"
+    ORDER {
+        int orderNumber
+        date orderDate
+        int customerId
     }
-   
-    KeyingAgency ||--o{ ZipFile : "receives zip files | KeyingAgency.Id -> ZipFile.KeyingAgencyId"
-    KeyingAgency ||--o{ KeyedDataIngestion : "provides keyed data | KeyingAgency.AgencyCode -> KeyedDataIngestion.KeyingAgencyCode"
-    KeyingAgency {
-        int Id PK "Identity primary key"
-        varchar(50) AgencyCode UK "Agency identifier (e.g., AA0097) from DI API [UX_KeyingAgency_AgencyCode]"
-        varchar(50) Name "Agency display name"
-        bit IsEnabled "Active status flag"
-        int KeyingAgencyTypeId FK "Keying stage: Name/Question/AI"
-    }
-   
-    ZipFileStatus ||--o{ ZipFile : "tracks import status | ZipFileImportStatus.Id -> ZipFile.FileImportStatusId"
-    ZipFileStatus {
-        int Id PK "Identity primary key"
-        varchar(100) Status "Import status [Static: 1=Pending, 2=Sent, 3=Completed, 4=Failed]"
-    }
-   
-    ClipKeyingStatus ||--o{ Clip : "tracks keying progress | ClipKeyingStatus.Id -> Clip.KeyingStatusId"
-    ClipKeyingStatus {
-        int Id PK "Identity primary key"
-        varchar(50) Status "Keying status [Static: 1=NotKeyed, 2=SentToDI, 3=KeyedByManual, 4=KeyedByAI, 5=Complete]"
-    }
-   
-    KeyedDataIngestionStatus ||--o{ KeyedDataIngestion : "tracks ingestion state | KeyedDataIngestionStatus.Id -> KeyedDataIngestion.StatusId"
-    KeyedDataIngestionStatus {
-        int Id PK "Identity primary key"
-        varchar(50) Status "Ingestion status [Static: 1=Ingesting, 2=Ingested, 3=Failed]"
-    }
-   
-    ZipFile ||--o{ Clip : "contains clips | ZipFile.Id -> Clip.ZipFileId"
-    ZipFile {
-        int Id PK "Identity primary key"
-        varchar(50) FileName "Zip file name"
-        varchar(1000) FilePath "File storage path"
-        int KeyingAgencyId FK "Target agency"
-        varchar(14) ScriptDefinitionVersion "Version for backtracking"
-        datetime FileZippedAt "Compression timestamp"
-        int FileImportStatusId FK "Import status"
-        datetime CreatedAt "Creation timestamp (default getutcdate())"
-        datetime UpdatedAt "Update timestamp"
-    }
-                   
-    ScriptData ||--o{ Clip : "generates clips | ScriptData.Id -> Clip.ScriptDataId"
-    ScriptData {
-        int Id PK "Identity primary key"
-        uniqueidentifier ScriptGuid "Script identifier from event"
-        varchar(50) OrganisationReference "Awarding body code"
-        varchar(50) SessionReference "Session code"
-        varchar(50) ComponentReference "Component reference"
-        varchar(50) SeriesCode "Series code"
-        datetime ScannedAt "Scan timestamp from event"
-        datetime IngestedAt "ESP ingestion timestamp"
-        varchar(30) CentreNumber "Centre number from event"
-    }
-   
-    KeyedDataIngestion ||--o{ AutoMarkingKeyedData : "sources auto-marking data | KeyedDataIngestion.Id -> AutoMarkingKeyedData.KeyedDataIngestionId"
-    KeyedDataIngestion ||--o{ NameMatchingKeyedData : "sources name-matching data | KeyedDataIngestion.Id -> NameMatchingKeyedData.KeyedDataIngestionId"
-    KeyedDataIngestion {
-        int Id PK "Identity primary key"
-        uniqueidentifier DatasetGuid UK "Dataset identifier for all batches [UQ_DatasetGuid]"
-        varchar(1000) FileName "Keyed data filename (keyedFileName)"
-        int StatusId FK "Ingestion status reference"
-        varchar(50) KeyingAgencyCode FK "Source keying agency code from DI [FK to KeyingAgency.AgencyCode]"
-        int TotalRecordCount "Expected total records (X-Total-Record-Count)"
-        datetime DataInterchangeReceivedAt "DI receipt timestamp (receivedAt)"
-        datetime IngestedAt "ESP ingestion timestamp"
-        datetime CreatedAt "Creation timestamp (default getutcdate())"
-        datetime UpdatedAt "Update timestamp for upsert"
-    }
-   
-    Clip ||--o{ AutoMarkingKeyedData : "has auto-marking keyed data | Clip.Id -> AutoMarkingKeyedData.ClipId"
-    Clip ||--o{ NameMatchingKeyedData : "has name-matching keyed data | Clip.Id -> NameMatchingKeyedData.ClipId"
-    Clip {
-        int Id PK "Identity primary key"
-        uniqueidentifier ClipGuid UK "Unique clip identifier for inter-domain exchanges"
-        varchar(50) GeneratedClipIdentifier UK "Generated identifier - matches ClipIdentifier from DI [UX_Clip_GeneratedClipIdentifier]"
-        int ClipTypeId FK "Clip type reference (determines KA routing)"
-        int ZipFileId FK "Source zip file"
-        varchar(30) Name "Name from ClipDefinition"
-        int ScriptDataId FK "Associated script"
-        int PageNumber "Page number in script"
-        int KeyingStatusId FK "Keying progress reference"
-        datetime CreatedAt "Creation timestamp (default getutcdate())"
-        datetime UpdatedAt "Update timestamp"
-    }
-   
-    AutoMarkingKeyedData {
-        int Id PK "Identity primary key"
-        int ClipId FK "Associated clip (NULL = no match found) [IX_ClipId]"
-        int KeyedDataIngestionId FK "Source ingestion record"
-        varchar(255) ClipIdentifier "Clip identifier from DI - match to Clip.GeneratedClipIdentifier [IX_ClipIdentifier]"
-        varchar(10) KeyedValue "Keyed value data"
-        datetime CreatedAt "Creation timestamp (default getutcdate())"
-    }
-   
-    NameMatchingKeyedData {
-        int Id PK "Identity primary key"
-        int ClipId FK "Associated clip (NULL = no match found) [IX_ClipId]"
-        int KeyedDataIngestionId FK "Source ingestion record"
-        varchar(255) ClipIdentifier "Clip identifier from DI - match to Clip.GeneratedClipIdentifier [IX_ClipIdentifier]"
-        varchar(50) CandidateNumber "Candidate identifier (string from API)"
-        varchar(50) CentreNumber "Centre identifier (string from API)"
-        varchar(200) Forename "Candidate first name"
-        varchar(200) Surname "Candidate last name"
-        date DateOfBirth "Candidate DOB"
-        date TestDate "Test date"
-        datetime CreatedAt "Creation timestamp (default getutcdate())"
+    LINE-ITEM {
+        int quantity
+        decimal price
     }
 ```
 

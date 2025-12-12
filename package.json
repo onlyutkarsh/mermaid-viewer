@@ -1,7 +1,7 @@
 {
-  "name": "mermaid-preview",
-  "displayName": "Mermaid Preview with Themes",
-  "description": "Preview Mermaid diagrams with custom theme selection independent of VSCode theme",
+  "name": "better-mermaid-preview",
+  "displayName": "Better Mermaid Preview",
+  "description": "Preview Mermaid diagrams with custom theme selection independent of VSCode theme.",
   "version": "0.0.1",
   "publisher": "onlyutkarsh",
   "engines": {
@@ -35,7 +35,7 @@
     "commands": [
       {
         "command": "mermaid-preview.showPreview",
-        "title": "Mermaid: Open Preview",
+        "title": "Better Mermaid Preview: Open Preview",
         "icon": {
           "light": "media/mermaid-gutter.svg",
           "dark": "media/mermaid-gutter.svg"
@@ -43,7 +43,7 @@
       },
       {
         "command": "mermaid-preview.showPreviewToSide",
-        "title": "Mermaid: Open Preview to the Side",
+        "title": "Better Mermaid Preview: Open Preview to the Side",
         "icon": {
           "light": "media/mermaid-gutter.svg",
           "dark": "media/mermaid-gutter.svg"
@@ -51,7 +51,7 @@
       },
       {
         "command": "mermaid-preview.showDiagramAtPosition",
-        "title": "Mermaid: Preview This Diagram"
+        "title": "Better Mermaid Preview: Preview This Diagram"
       }
     ],
     "menus": {

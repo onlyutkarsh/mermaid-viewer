@@ -106,13 +106,32 @@ export function activate(context: vscode.ExtensionContext) {
         'mermaid-preview.showPreview',
         () => {
             const editor = vscode.window.activeTextEditor;
-            if (editor) {
-                MermaidPreviewPanel.createOrShow(
-                    context.extensionUri,
-                    editor.document,
-                    vscode.ViewColumn.Active
-                );
+            if (!editor) {
+                logger.logWarning('showPreview invoked without an active editor');
+                vscode.window.showInformationMessage('Open a Markdown file containing Mermaid diagrams to preview them.');
+                return;
             }
+
+            if (editor.document.languageId !== 'markdown') {
+                logger.logWarning('showPreview invoked for non-markdown document', {
+                    languageId: editor.document.languageId,
+                    uri: editor.document.uri.toString()
+                });
+                vscode.window.showInformationMessage('Mermaid Preview only works with Markdown files.');
+                return;
+            }
+
+            const documentUri = editor.document.uri?.toString();
+            logger.logDebug('Command', 'Opening preview', {
+                command: 'mermaid-preview.showPreview',
+                uri: documentUri ?? 'unknown'
+            });
+
+            MermaidPreviewPanel.createOrShow(
+                context.extensionUri,
+                editor.document,
+                vscode.ViewColumn.Active
+            );
         }
     );
 
@@ -121,27 +140,98 @@ export function activate(context: vscode.ExtensionContext) {
         'mermaid-preview.showPreviewToSide',
         () => {
             const editor = vscode.window.activeTextEditor;
-            if (editor) {
-                MermaidPreviewPanel.createOrShow(
-                    context.extensionUri,
-                    editor.document,
-                    vscode.ViewColumn.Beside
-                );
+            if (!editor) {
+                logger.logWarning('showPreviewToSide invoked without an active editor');
+                vscode.window.showInformationMessage('Open a Markdown file containing Mermaid diagrams to preview them.');
+                return;
             }
+
+            if (editor.document.languageId !== 'markdown') {
+                logger.logWarning('showPreviewToSide invoked for non-markdown document', {
+                    languageId: editor.document.languageId,
+                    uri: editor.document.uri.toString()
+                });
+                vscode.window.showInformationMessage('Mermaid Preview only works with Markdown files.');
+                return;
+            }
+
+            const documentUri = editor.document.uri?.toString();
+            logger.logDebug('Command', 'Opening preview to the side', {
+                command: 'mermaid-preview.showPreviewToSide',
+                uri: documentUri ?? 'unknown'
+            });
+
+            MermaidPreviewPanel.createOrShow(
+                context.extensionUri,
+                editor.document,
+                vscode.ViewColumn.Beside
+            );
         }
     );
 
     // Register command to show diagram at specific position
     const showDiagramAtPositionCommand = vscode.commands.registerCommand(
         'mermaid-preview.showDiagramAtPosition',
-        async (uri: vscode.Uri, line: number) => {
-            const document = await vscode.workspace.openTextDocument(uri);
-            MermaidPreviewPanel.createOrShowSingle(
-                context.extensionUri,
-                document,
-                line,
-                vscode.ViewColumn.Beside
-            );
+        async (uri: vscode.Uri | undefined, line: number | undefined) => {
+            logger.logDebug('Command', 'showDiagramAtPosition invoked', {
+                uri: uri?.toString() ?? 'undefined',
+                line: line ?? 'undefined'
+            });
+
+            try {
+                let document: vscode.TextDocument | undefined;
+                let targetLine = line;
+
+                if (uri) {
+                    document = await vscode.workspace.openTextDocument(uri);
+                } else {
+                    const editor = vscode.window.activeTextEditor;
+                    if (!editor) {
+                        logger.logError('showDiagramAtPosition called without a URI and no active editor');
+                        vscode.window.showErrorMessage('Unable to preview diagram: no document context available.');
+                        return;
+                    }
+
+                    document = editor.document;
+                    if (typeof targetLine !== 'number') {
+                        targetLine = editor.selection.active.line;
+                        logger.logDebug('Command', 'Using active editor selection for diagram preview', {
+                            inferredLine: targetLine
+                        });
+                    }
+                }
+
+                if (!document) {
+                    logger.logError('showDiagramAtPosition could not resolve a document');
+                    vscode.window.showErrorMessage('Unable to preview diagram: document could not be determined.');
+                    return;
+                }
+
+                if (document.languageId !== 'markdown') {
+                    logger.logWarning('showDiagramAtPosition invoked for non-markdown document', {
+                        languageId: document.languageId,
+                        uri: document.uri.toString()
+                    });
+                    vscode.window.showInformationMessage('Mermaid Preview only works with Markdown files.');
+                    return;
+                }
+
+                if (typeof targetLine !== 'number') {
+                    logger.logError('showDiagramAtPosition missing line information even after fallback');
+                    vscode.window.showErrorMessage('Unable to preview diagram: missing line information.');
+                    return;
+                }
+
+                MermaidPreviewPanel.createOrShowSingle(
+                    context.extensionUri,
+                    document,
+                    targetLine,
+                    vscode.ViewColumn.Beside
+                );
+            } catch (error) {
+                logger.logError('Failed to open document for showDiagramAtPosition', error instanceof Error ? error : new Error(String(error)));
+                vscode.window.showErrorMessage('Unable to open document for Mermaid preview. See output for details.');
+            }
         }
     );
 
