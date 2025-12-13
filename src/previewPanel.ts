@@ -43,7 +43,10 @@ export class MermaidPreviewPanel {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [extensionUri]
+                localResourceRoots: [
+                    extensionUri,
+                    vscode.Uri.joinPath(extensionUri, 'out')
+                ]
             }
         );
 
@@ -74,7 +77,10 @@ export class MermaidPreviewPanel {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
-                localResourceRoots: [extensionUri]
+                localResourceRoots: [
+                    extensionUri,
+                    vscode.Uri.joinPath(extensionUri, 'out')
+                ]
             }
         );
 
@@ -132,9 +138,24 @@ export class MermaidPreviewPanel {
                         break;
                     case 'renderError':
                         this._logger.logError('Mermaid diagram render failed', {
+                            document: this._currentDocument?.uri.toString() ?? 'unknown',
                             index: message.index,
                             line: message.line ?? null,
                             details: message.message ?? 'Unknown error'
+                        });
+                        break;
+                    case 'webviewError':
+                        this._logger.logError('Webview runtime error', {
+                            document: this._currentDocument?.uri.toString() ?? 'unknown',
+                            message: message.message ?? 'Unknown error',
+                            stack: message.stack ?? 'no-stack'
+                        });
+                        break;
+                    case 'lifecycleEvent':
+                        this._logger.logInfo('Webview lifecycle event', {
+                            document: this._currentDocument?.uri.toString() ?? 'unknown',
+                            status: message.status ?? 'unknown',
+                            detail: message.documentId ?? 'unknown'
                         });
                         break;
                     case 'changeAppearance':
@@ -299,6 +320,10 @@ export class MermaidPreviewPanel {
             return;
         }
 
+        this._logger.logDebug('Render', 'Rendering all diagrams', {
+            document: this._currentDocument.uri.toString(),
+            mode: 'all'
+        });
         const mermaidCode = this._extractMermaidCode(this._currentDocument);
 
         if (!mermaidCode) {
@@ -341,6 +366,11 @@ export class MermaidPreviewPanel {
             return;
         }
 
+        this._logger.logDebug('Render', 'Rendering single diagram', {
+            document: this._currentDocument.uri.toString(),
+            mode: 'single',
+            blockIndex: targetIndex
+        });
         const mermaidCode = JSON.stringify([targetBlock.code]);
         const { theme, appearance } = this._resolveTheme(overrideTheme);
         webview.html = this._getHtmlForWebview(
@@ -468,6 +498,15 @@ export class MermaidPreviewPanel {
         return { theme, appearance };
     }
 
+    private _generateNonce(): string {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 32; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
     private _getAppearanceClass(appearance: PreviewAppearance): string {
         switch (appearance) {
             case 'light':
@@ -502,8 +541,12 @@ export class MermaidPreviewPanel {
                 'mermaid.esm.min.mjs'
             )
         );
+        this._logger.logDebug('Render', 'Resolved Mermaid runtime', {
+            uri: mermaidScriptUri.toString()
+        });
 
         const docId = documentId ?? 'unknown';
+        const nonce = this._generateNonce();
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -511,7 +554,8 @@ export class MermaidPreviewPanel {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mermaid Diagram Lens</title>
-    <script type="module">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; connect-src ${webview.cspSource} https:;">
+    <script type="module" nonce="${nonce}">
         import mermaid from '${mermaidScriptUri}';
 
         const vscode = acquireVsCodeApi();
@@ -1070,6 +1114,22 @@ export class MermaidPreviewPanel {
             }
         }
 
+        window.addEventListener('error', (event) => {
+            vscode.postMessage({
+                command: 'webviewError',
+                message: event.message ?? 'Unknown error',
+                stack: event.error?.stack ?? null
+            });
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            vscode.postMessage({
+                command: 'webviewError',
+                message: event.reason?.message ?? String(event.reason ?? 'Unhandled promise rejection'),
+                stack: event.reason?.stack ?? null
+            });
+        });
+
         window.addEventListener('load', () => {
             stageEl = document.getElementById('diagram-stage');
             setBodyAppearance(currentAppearance);
@@ -1079,6 +1139,7 @@ export class MermaidPreviewPanel {
             renderAllDiagrams();
             scheduleZoomUpdate();
             scheduleTransform();
+            vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
         });
     </script>
     <style>

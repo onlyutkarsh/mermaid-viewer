@@ -130,9 +130,9 @@
     "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild": "npm run -S esbuild-base -- --sourcemap && npm run copy-mermaid",
     "esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
-    "copy-mermaid": "mkdir -p out/mermaid/dist && cp node_modules/mermaid/dist/mermaid.esm.min.mjs out/mermaid/dist/",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "copy-mermaid": "shx rm -rf out/mermaid && shx mkdir -p out/mermaid && shx cp -r node_modules/mermaid/dist out/mermaid/",
+    "compile": "tsc -p ./ && npm run copy-mermaid",
+    "watch": "npm run copy-mermaid && tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "package": "vsce package",
     "deploy": "vsce publish",
@@ -148,6 +148,7 @@
     "eslint": "^9.39.2",
     "ovsx": "^0.10.7",
     "rimraf": "^6.1.2",
+    "shx": "^0.4.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
