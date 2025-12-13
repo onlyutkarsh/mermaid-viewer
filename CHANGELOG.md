@@ -9,6 +9,11 @@
 ## 0.0.1 (2025-12-13)
 
 
+### Bug Fixes
+
+* retain zoom state ([2a02312](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/2a02312236f81e70f14fc7440758ba4349088c85))
+
+
 ### Features
 
 * add mermaid dependency and update preview panel to use local mermaid script ([2452727](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/24527279f9c51decac028c75ae82dcbe5b8c481e))
