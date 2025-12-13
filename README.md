@@ -43,7 +43,7 @@ In the preview panel toolbar:
 - A subtle **gutter icon** highlights each Mermaid fence, so you can spot diagrams quickly (it's a visual cue only; use the CodeLens to open the preview).
 - The editor toolbar/title icon still opens the multi-diagram preview, so you can see every Mermaid block at once.
 
-![CodeLens and Gutter Icon](images/icons-showcase.png)
+![CodeLens and Gutter Icon](images/icons-showcase.webp)
 
 ### Supported Themes
 
