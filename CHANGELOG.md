@@ -6,7 +6,7 @@
 
 ### Changes
 
-## 0.0.1 (2025-12-13)
+## [1.0.1](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/24527279f9c51decac028c75ae82dcbe5b8c481e...v1.0.1) (2025-12-13)
 
 
 ### Bug Fixes
