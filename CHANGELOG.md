@@ -12,6 +12,7 @@
 ### Bug Fixes
 
 * retain zoom state ([2a02312](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/2a02312236f81e70f14fc7440758ba4349088c85))
+* update permissions and token configuration in release workflow ([b3b04de](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/b3b04de20d3b1dd501258fb172e390a277f0018e))
 
 
 ### Features
