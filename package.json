@@ -126,7 +126,11 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run -S esbuild-base -- --minify && npm run copy-mermaid",
+    "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "esbuild": "npm run -S esbuild-base -- --sourcemap && npm run copy-mermaid",
+    "esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
+    "copy-mermaid": "mkdir -p out/mermaid/dist && cp node_modules/mermaid/dist/mermaid.esm.min.mjs out/mermaid/dist/",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
@@ -140,8 +144,10 @@
     "@typescript-eslint/eslint-plugin": "^8.49.0",
     "@typescript-eslint/parser": "^8.49.0",
     "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.1",
     "eslint": "^9.39.2",
     "ovsx": "^0.10.7",
+    "rimraf": "^6.1.2",
     "typescript": "^5.9.3"
   },
   "dependencies": {

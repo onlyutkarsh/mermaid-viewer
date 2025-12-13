@@ -496,7 +496,7 @@ export class MermaidPreviewPanel {
         const mermaidScriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(
                 this._extensionUri,
-                'node_modules',
+                'out',
                 'mermaid',
                 'dist',
                 'mermaid.esm.min.mjs'
