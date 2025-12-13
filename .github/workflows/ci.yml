@@ -55,6 +55,7 @@ jobs:
 
   update-changelog:
     runs-on: ubuntu-latest
+    needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
