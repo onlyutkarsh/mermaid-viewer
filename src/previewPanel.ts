@@ -22,6 +22,7 @@ export class MermaidPreviewPanel {
     private _mode: PreviewMode = 'all';
     private _singleLine: number | undefined;
     private _singleBlockIndex: number | undefined;
+    private _isDisposed = false;
 
     public static createOrShow(
         extensionUri: vscode.Uri,
@@ -189,6 +190,11 @@ export class MermaidPreviewPanel {
     }
 
     private _render(overrideTheme?: string) {
+        if (this._isDisposed) {
+            this._logger.logWarning('Render skipped because panel is disposed');
+            return;
+        }
+
         if (this._mode === 'single' && this._singleLine !== undefined) {
             this._renderSingle(this._singleLine, undefined, overrideTheme);
         } else {
@@ -197,6 +203,11 @@ export class MermaidPreviewPanel {
     }
 
     public updateContent(document: vscode.TextDocument) {
+        if (this._isDisposed) {
+            this._logger.logWarning('updateContent ignored because panel is disposed');
+            return;
+        }
+
         const currentDocumentUri = this._currentDocument?.uri.toString();
         const incomingUri = document.uri.toString();
 
@@ -1139,8 +1150,56 @@ export class MermaidPreviewPanel {
             renderAllDiagrams();
             scheduleZoomUpdate();
             scheduleTransform();
+            bindToolbarControls();
             vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
         });
+
+        function bindToolbarControls() {
+            const actionMap = new Map([
+                ['zoom-in', zoomIn],
+                ['zoom-out', zoomOut],
+                ['zoom-reset', zoomReset]
+            ]);
+
+            actionMap.forEach((handler, action) => {
+                document.querySelectorAll('[data-action=\"' + action + '\"]').forEach(btn => {
+                    btn.addEventListener('click', handler);
+                });
+            });
+
+            document.querySelectorAll('[data-direction]').forEach(btn => {
+                const dir = Number(btn.dataset.direction);
+                btn.addEventListener('click', () => navigateDiagram(dir));
+            });
+
+            document.querySelectorAll('[data-dropdown-toggle]').forEach(btn => {
+                const target = btn.dataset.dropdownToggle;
+                if (target) {
+                    btn.addEventListener('click', () => toggleDropdown(target));
+                }
+            });
+
+            document.querySelectorAll('[data-theme-option]').forEach(btn => {
+                const theme = btn.dataset.themeOption;
+                if (theme) {
+                    btn.addEventListener('click', () => handleThemeChange(theme));
+                }
+            });
+
+            document.querySelectorAll('[data-appearance-option]').forEach(btn => {
+                const appearance = btn.dataset.appearanceOption;
+                if (appearance) {
+                    btn.addEventListener('click', () => handleAppearanceChange(appearance));
+                }
+            });
+
+            document.querySelectorAll('[data-export-format]').forEach(btn => {
+                const format = btn.dataset.exportFormat;
+                if (format) {
+                    btn.addEventListener('click', () => exportActiveDiagram(format));
+                }
+            });
+        }
     </script>
     <style>
         * { box-sizing: border-box; }
@@ -1386,40 +1445,40 @@ export class MermaidPreviewPanel {
 <body class="${appearanceClass}">
     <div class="toolbar">
         <div class="toolbar-group">
-            <button onclick="zoomOut()">−</button>
+            <button data-action="zoom-out">−</button>
             <span id="zoom-level">100%</span>
-            <button onclick="zoomIn()">+</button>
-            <button onclick="zoomReset()">Reset</button>
+            <button data-action="zoom-in">+</button>
+            <button data-action="zoom-reset">Reset</button>
         </div>
         <div class="toolbar-group" id="diagram-controls">
-            <button id="prev-diagram" onclick="navigateDiagram(-1)">◀</button>
+            <button id="prev-diagram" data-direction="-1">◀</button>
             <span id="diagram-indicator"></span>
-            <button id="next-diagram" onclick="navigateDiagram(1)">▶</button>
+            <button id="next-diagram" data-direction="1">▶</button>
         </div>
         <div class="toolbar-group dropdown">
-            <button class="action-btn" id="theme-button" onclick="toggleDropdown('theme')">Theme ▾</button>
+            <button class="action-btn" id="theme-button" data-dropdown-toggle="theme">Theme ▾</button>
             <div class="dropdown-menu" id="dropdown-theme">
-                <button data-value="default" onclick="handleThemeChange('default')">Default</button>
-                <button data-value="dark" onclick="handleThemeChange('dark')">Dark</button>
-                <button data-value="forest" onclick="handleThemeChange('forest')">Forest</button>
-                <button data-value="neutral" onclick="handleThemeChange('neutral')">Neutral</button>
-                <button data-value="base" onclick="handleThemeChange('base')">Base</button>
+                <button data-theme-option="default">Default</button>
+                <button data-theme-option="dark">Dark</button>
+                <button data-theme-option="forest">Forest</button>
+                <button data-theme-option="neutral">Neutral</button>
+                <button data-theme-option="base">Base</button>
             </div>
         </div>
         <div class="toolbar-group dropdown">
-            <button class="action-btn" id="appearance-button" onclick="toggleDropdown('appearance')">Appearance ▾</button>
+            <button class="action-btn" id="appearance-button" data-dropdown-toggle="appearance">Appearance ▾</button>
             <div class="dropdown-menu" id="dropdown-appearance">
-                <button data-value="matchVSCode" onclick="handleAppearanceChange('matchVSCode')">Match VS Code</button>
-                <button data-value="light" onclick="handleAppearanceChange('light')">Light</button>
-                <button data-value="dark" onclick="handleAppearanceChange('dark')">Dark</button>
+                <button data-appearance-option="matchVSCode">Match VS Code</button>
+                <button data-appearance-option="light">Light</button>
+                <button data-appearance-option="dark">Dark</button>
             </div>
         </div>
         <div class="toolbar-group dropdown">
-            <button class="action-btn" onclick="toggleDropdown('export')">Export ▾</button>
+            <button class="action-btn" data-dropdown-toggle="export">Export ▾</button>
             <div class="dropdown-menu" id="dropdown-export">
-                <button onclick="exportActiveDiagram('svg')">SVG</button>
-                <button onclick="exportActiveDiagram('png')">PNG</button>
-                <button onclick="exportActiveDiagram('jpg')">JPG</button>
+                <button data-export-format="svg">SVG</button>
+                <button data-export-format="png">PNG</button>
+                <button data-export-format="jpg">JPG</button>
             </div>
         </div>
     </div>
@@ -1481,8 +1540,18 @@ export class MermaidPreviewPanel {
     }
 
     public dispose() {
+        if (this._isDisposed) {
+            return;
+        }
+
+        this._isDisposed = true;
         MermaidPreviewPanel.currentPanel = undefined;
         this._blockCache.clear();
+
+        if (this._updateTimeout) {
+            clearTimeout(this._updateTimeout);
+            this._updateTimeout = undefined;
+        }
 
         this._panel.dispose();
 
