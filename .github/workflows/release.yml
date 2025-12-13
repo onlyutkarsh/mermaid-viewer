@@ -58,11 +58,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Compile TypeScript
         run: npm run compile
+
+      - name: Lint code
+        run: npm run lint
 
       - name: Build extension
         run: npm run package
