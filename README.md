@@ -43,7 +43,7 @@ In the preview panel toolbar:
 - A subtle **gutter icon** highlights each Mermaid fence, so you can spot diagrams quickly (it's a visual cue only; use the CodeLens to open the preview).
 - The editor toolbar/title icon still opens the multi-diagram preview, so you can see every Mermaid block at once.
 
-![CodeLens and Gutter Icon](images/icons-showcase.webp)
+![CodeLens and Gutter Icon](images/preview.webp)
 
 ### Supported Themes
 
@@ -87,9 +87,9 @@ graph TD
 ````
 ## Commands
 
-- `Mermaid Diagram Lens: Open Preview` – Shows every Mermaid fence from the active Markdown file in the current editor column.
-- `Mermaid Diagram Lens: Open Preview to the Side` – Same multi-diagram preview, but always opens in the column beside the editor for live editing.
-- `Mermaid Diagram Lens: Preview Diagram Here` – Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
+- `Mermaid Diagram Lens: Open Preview` - Shows every Mermaid fence from the active Markdown file in the current editor column.
+- `Mermaid Diagram Lens: Open Preview to the Side` - Same multi-diagram preview, but always opens in the column beside the editor for live editing.
+- `Mermaid Diagram Lens: Preview Diagram Here` - Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
 
 ## Requirements
 
@@ -108,18 +108,6 @@ This extension contributes the following settings:
 * `mermaidLens.useVSCodeTheme`: Sync theme with VSCode
 * `mermaidLens.autoRefresh`: Enable/disable auto-refresh
 * `mermaidLens.refreshDelay`: Set refresh delay in milliseconds
-
-## Release Notes
-
-### 0.0.1
-
-Initial release:
-- Mermaid diagram preview
-- Multiple theme support
-- Independent theme selection
-- Optional VSCode theme sync
-- Live preview updates
-- Theme persistence
 
 ## Contributing
 

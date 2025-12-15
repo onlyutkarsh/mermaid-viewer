@@ -5,33 +5,6 @@ Test the extension with these sample diagrams!
 ## Flowchart Example
 
 ```mermaid
----
-config:
-  layout: elk
-  elk:
-    mergeEdges: false
-    nodePlacementStrategy: LINEAR_SEGMENTS
----
-erDiagram
-    CUSTOMER ||--o{ ORDER : places
-    ORDER ||--|{ LINE-ITEM : contains
-    CUSTOMER {
-        string name
-        string email
-        int id
-    }
-    ORDER {
-        int orderNumber
-        date orderDate
-        int customerId
-    }
-    LINE-ITEM {
-        int quantity
-        decimal price
-    }
-```
-
-```mermaid
 graph TD
     A[Start] --> B{Is it working?}
     B -->|Yes| C[Awesome!]

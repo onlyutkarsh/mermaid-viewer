@@ -81,13 +81,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Refresh preview when VS Code theme changes so appearance rules can be re-applied
     const themeChangeListener = vscode.window.onDidChangeActiveColorTheme(() => {
-        MermaidPreviewPanel.currentPanel?.refreshAppearance();
+        MermaidPreviewPanel.forEachPanel(panel => panel.refreshAppearance());
     });
     context.subscriptions.push(themeChangeListener);
 
     const configChangeListener = vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('mermaidLens.previewAppearance')) {
-            MermaidPreviewPanel.currentPanel?.refreshAppearance();
+            MermaidPreviewPanel.forEachPanel(panel => panel.refreshAppearance());
         }
     });
     context.subscriptions.push(configChangeListener);
@@ -232,8 +232,8 @@ export function activate(context: vscode.ExtensionContext) {
         const autoRefresh = config.get<boolean>('autoRefresh', true);
 
         // Only update if it's a markdown file
-        if (autoRefresh && e.document.languageId === 'markdown' && MermaidPreviewPanel.currentPanel) {
-            MermaidPreviewPanel.currentPanel.updateContent(e.document);
+        if (autoRefresh && e.document.languageId === 'markdown' && MermaidPreviewPanel.hasOpenPanels()) {
+            MermaidPreviewPanel.forEachPanel(panel => panel.updateContent(e.document));
         }
     });
 
@@ -242,8 +242,8 @@ export function activate(context: vscode.ExtensionContext) {
         gutterDecorator.update(editor);
 
         // Only update if it's a markdown file
-        if (editor && editor.document.languageId === 'markdown' && MermaidPreviewPanel.currentPanel) {
-            MermaidPreviewPanel.currentPanel.updateContent(editor.document);
+        if (editor && editor.document.languageId === 'markdown' && MermaidPreviewPanel.hasOpenPanels()) {
+            MermaidPreviewPanel.forEachPanel(panel => panel.updateContent(editor.document));
         }
     });
 
@@ -252,8 +252,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     const selectionChangeSubscription = vscode.window.onDidChangeTextEditorSelection((event) => {
-        const panel = MermaidPreviewPanel.currentPanel;
-        if (!panel) {
+        if (!MermaidPreviewPanel.hasOpenPanels()) {
             return;
         }
 
@@ -267,7 +266,7 @@ export function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        panel.handleSelectionChange(editor.document, activeLine);
+        MermaidPreviewPanel.forEachPanel(panel => panel.handleSelectionChange(editor.document, activeLine));
     });
 
     context.subscriptions.push(

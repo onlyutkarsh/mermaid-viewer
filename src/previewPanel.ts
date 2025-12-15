@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { Logger } from './util/logger';
 
@@ -11,35 +12,74 @@ type MermaidBlock = {
 };
 
 export class MermaidPreviewPanel {
-    public static currentPanel: MermaidPreviewPanel | undefined;
+    private static readonly _panels = new Set<MermaidPreviewPanel>();
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
     private readonly _logger: Logger;
     private readonly _blockCache = new Map<string, { version: number; blocks: MermaidBlock[] }>();
+    private readonly _documentUri: string;
     private _disposables: vscode.Disposable[] = [];
     private _updateTimeout: NodeJS.Timeout | undefined;
     private _currentDocument: vscode.TextDocument | undefined;
     private _mode: PreviewMode = 'all';
     private _singleLine: number | undefined;
     private _singleBlockIndex: number | undefined;
+    private _singleBlockStartLine: number | undefined;
+    private _singleBlockEndLine: number | undefined;
     private _isDisposed = false;
 
-    public static createOrShow(
-        extensionUri: vscode.Uri,
-        document: vscode.TextDocument,
-        viewColumn: vscode.ViewColumn
-    ) {
-        // If we already have a panel, show it
-        if (MermaidPreviewPanel.currentPanel) {
-            MermaidPreviewPanel.currentPanel._switchToAllMode(document);
-            MermaidPreviewPanel.currentPanel._panel.reveal(viewColumn);
-            return;
+    public static forEachPanel(callback: (panel: MermaidPreviewPanel) => void) {
+        for (const panel of MermaidPreviewPanel._panels) {
+            callback(panel);
         }
+    }
 
-        // Otherwise, create a new panel
-        const panel = vscode.window.createWebviewPanel(
+    public static hasOpenPanels(): boolean {
+        return MermaidPreviewPanel._panels.size > 0;
+    }
+
+    private static _findMatchingPanel(
+        document: vscode.TextDocument,
+        mode: PreviewMode,
+        lineNumber?: number
+    ): MermaidPreviewPanel | undefined {
+        for (const panel of MermaidPreviewPanel._panels) {
+            if (panel._matches(document, mode, lineNumber)) {
+                return panel;
+            }
+        }
+        return undefined;
+    }
+
+    private static _deriveDocumentLabel(document: vscode.TextDocument): string {
+        if (document.uri.scheme === 'untitled') {
+            const parts = document.uri.path.split('/');
+            return parts[parts.length - 1] || 'Untitled';
+        }
+        return path.basename(document.uri.fsPath);
+    }
+
+    private static _buildPanelTitle(
+        document: vscode.TextDocument,
+        mode: PreviewMode,
+        lineNumber?: number
+    ): string {
+        const label = MermaidPreviewPanel._deriveDocumentLabel(document);
+        if (mode === 'single') {
+            const lineSuffix = typeof lineNumber === 'number' ? `:${lineNumber + 1}` : '';
+            return `Mermaid Diagram Preview — ${label}${lineSuffix}`;
+        }
+        return `Mermaid Diagram Lens — ${label}`;
+    }
+
+    private static _createWebviewPanel(
+        extensionUri: vscode.Uri,
+        title: string,
+        viewColumn: vscode.ViewColumn
+    ): vscode.WebviewPanel {
+        return vscode.window.createWebviewPanel(
             'mermaidPreview',
-            'Mermaid Diagram Lens',
+            title,
             viewColumn,
             {
                 enableScripts: true,
@@ -50,13 +90,20 @@ export class MermaidPreviewPanel {
                 ]
             }
         );
+    }
 
-        MermaidPreviewPanel.currentPanel = new MermaidPreviewPanel(
-            panel,
+    public static createOrShow(
+        extensionUri: vscode.Uri,
+        document: vscode.TextDocument,
+        viewColumn: vscode.ViewColumn
+    ) {
+        const title = MermaidPreviewPanel._buildPanelTitle(document, 'all');
+        const panel = MermaidPreviewPanel._createWebviewPanel(
             extensionUri,
-            document,
-            'all'
+            title,
+            viewColumn
         );
+        new MermaidPreviewPanel(panel, extensionUri, document, 'all');
     }
 
     public static createOrShowSingle(
@@ -65,33 +112,21 @@ export class MermaidPreviewPanel {
         lineNumber: number,
         viewColumn: vscode.ViewColumn
     ) {
-        if (MermaidPreviewPanel.currentPanel) {
-            MermaidPreviewPanel.currentPanel._panel.reveal(viewColumn);
-            MermaidPreviewPanel.currentPanel._switchToSingleMode(document, lineNumber);
+        const existing = MermaidPreviewPanel._findMatchingPanel(document, 'single', lineNumber);
+        if (existing) {
+            existing._panel.reveal(viewColumn);
+            existing.handleSelectionChange(document, lineNumber);
             return;
         }
 
-        const panel = vscode.window.createWebviewPanel(
-            'mermaidPreview',
-            'Mermaid Diagram Preview',
-            viewColumn,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    extensionUri,
-                    vscode.Uri.joinPath(extensionUri, 'out')
-                ]
-            }
+        const title = MermaidPreviewPanel._buildPanelTitle(document, 'single', lineNumber);
+        const panel = MermaidPreviewPanel._createWebviewPanel(
+            extensionUri,
+            title,
+            viewColumn
         );
 
-        MermaidPreviewPanel.currentPanel = new MermaidPreviewPanel(
-            panel,
-            extensionUri,
-            document,
-            'single',
-            lineNumber
-        );
+        new MermaidPreviewPanel(panel, extensionUri, document, 'single', lineNumber);
     }
 
     private constructor(
@@ -104,9 +139,11 @@ export class MermaidPreviewPanel {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._currentDocument = document;
+        this._documentUri = document.uri.toString();
         this._logger = Logger.instance;
         this._mode = mode;
         this._singleLine = singleLine;
+        MermaidPreviewPanel._panels.add(this);
 
         // Set the webview's initial html content
         this._render();
@@ -169,26 +206,6 @@ export class MermaidPreviewPanel {
         );
     }
 
-    private _setMode(mode: PreviewMode, lineNumber?: number, blockIndex?: number) {
-        this._mode = mode;
-        this._singleLine = lineNumber;
-        this._singleBlockIndex = blockIndex;
-    }
-
-    private _switchToAllMode(document: vscode.TextDocument) {
-        this._currentDocument = document;
-        this._setMode('all');
-        this._render();
-    }
-
-    private _switchToSingleMode(document: vscode.TextDocument, lineNumber: number) {
-        this._currentDocument = document;
-        const blocks = this._getMermaidBlocks(document);
-        const blockIndex = this._findBlockIndexForLine(document, lineNumber, blocks);
-        this._setMode('single', lineNumber, blockIndex);
-        this._renderSingle(lineNumber, blocks);
-    }
-
     private _render(overrideTheme?: string) {
         if (this._isDisposed) {
             this._logger.logWarning('Render skipped because panel is disposed');
@@ -202,16 +219,44 @@ export class MermaidPreviewPanel {
         }
     }
 
+    private _matches(document: vscode.TextDocument, mode: PreviewMode, lineNumber?: number): boolean {
+        if (document.uri.toString() !== this._documentUri) {
+            return false;
+        }
+
+        if (mode === 'all') {
+            return this._mode === 'all';
+        }
+
+        if (this._mode !== 'single') {
+            return false;
+        }
+
+        if (typeof lineNumber !== 'number') {
+            return true;
+        }
+
+        if (
+            typeof this._singleBlockStartLine === 'number' &&
+            typeof this._singleBlockEndLine === 'number'
+        ) {
+            return lineNumber >= this._singleBlockStartLine && lineNumber <= this._singleBlockEndLine;
+        }
+
+        if (typeof this._singleLine === 'number') {
+            return lineNumber === this._singleLine;
+        }
+
+        return false;
+    }
+
     public updateContent(document: vscode.TextDocument) {
         if (this._isDisposed) {
             this._logger.logWarning('updateContent ignored because panel is disposed');
             return;
         }
 
-        const currentDocumentUri = this._currentDocument?.uri.toString();
-        const incomingUri = document.uri.toString();
-
-        if (this._mode === 'single' && currentDocumentUri && currentDocumentUri !== incomingUri) {
+        if (document.uri.toString() !== this._documentUri) {
             return;
         }
 
@@ -232,18 +277,16 @@ export class MermaidPreviewPanel {
         }, delay);
     }
 
-    public updateContentAtLine(document: vscode.TextDocument, lineNumber: number) {
-        this._switchToSingleMode(document, lineNumber);
-    }
-
     public handleSelectionChange(document: vscode.TextDocument, lineNumber: number) {
         if (this._mode !== 'single') {
             return;
         }
 
-        if (!this._currentDocument || this._currentDocument.uri.toString() !== document.uri.toString()) {
+        if (document.uri.toString() !== this._documentUri) {
             return;
         }
+
+        this._currentDocument = document;
 
         if (typeof lineNumber !== 'number') {
             return;
@@ -256,7 +299,11 @@ export class MermaidPreviewPanel {
             return;
         }
 
-        if (this._singleBlockIndex === blockIndex) {
+        if (typeof this._singleBlockIndex === 'number') {
+            if (blockIndex !== this._singleBlockIndex) {
+                return;
+            }
+
             this._singleLine = lineNumber;
             return;
         }
@@ -352,6 +399,7 @@ export class MermaidPreviewPanel {
             appearance,
             this._currentDocument?.uri.toString()
         );
+        this._updatePanelTitle();
     }
 
     private _renderSingle(lineNumber?: number, precomputedBlocks?: MermaidBlock[], overrideTheme?: string) {
@@ -373,6 +421,9 @@ export class MermaidPreviewPanel {
         const targetBlock = typeof targetIndex === 'number' ? blocks[targetIndex] : undefined;
 
         if (!targetBlock) {
+            this._singleBlockStartLine = undefined;
+            this._singleBlockEndLine = undefined;
+            this._updatePanelTitle();
             webview.html = this._getErrorHtml('No Mermaid diagram found at this position.');
             return;
         }
@@ -382,6 +433,16 @@ export class MermaidPreviewPanel {
             mode: 'single',
             blockIndex: targetIndex
         });
+
+        if (typeof lineNumber === 'number') {
+            this._singleLine = lineNumber;
+        } else if (typeof this._singleLine !== 'number') {
+            this._singleLine = targetBlock.startLine;
+        }
+
+        this._singleBlockStartLine = targetBlock.startLine;
+        this._singleBlockEndLine = targetBlock.endLine;
+
         const mermaidCode = JSON.stringify([targetBlock.code]);
         const { theme, appearance } = this._resolveTheme(overrideTheme);
         webview.html = this._getHtmlForWebview(
@@ -391,6 +452,7 @@ export class MermaidPreviewPanel {
             appearance,
             this._currentDocument?.uri.toString()
         );
+        this._updatePanelTitle();
     }
 
     private _extractMermaidCode(document: vscode.TextDocument): string | null {
@@ -462,6 +524,21 @@ export class MermaidPreviewPanel {
         const blocks = this._collectMermaidBlocks(document, text);
         this._blockCache.set(cacheKey, { version: document.version, blocks });
         return blocks;
+    }
+
+    private _updatePanelTitle() {
+        if (!this._currentDocument) {
+            return;
+        }
+
+        const lineHint = this._mode === 'single'
+            ? (this._singleBlockStartLine ?? this._singleLine)
+            : undefined;
+        this._panel.title = MermaidPreviewPanel._buildPanelTitle(
+            this._currentDocument,
+            this._mode,
+            typeof lineHint === 'number' ? lineHint : undefined
+        );
     }
 
     private _collectMermaidBlocks(document: vscode.TextDocument, text: string): MermaidBlock[] {
@@ -1545,7 +1622,7 @@ export class MermaidPreviewPanel {
         }
 
         this._isDisposed = true;
-        MermaidPreviewPanel.currentPanel = undefined;
+        MermaidPreviewPanel._panels.delete(this);
         this._blockCache.clear();
 
         if (this._updateTimeout) {
