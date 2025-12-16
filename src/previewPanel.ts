@@ -663,6 +663,9 @@ export class MermaidPreviewPanel {
         let currentTheme = '${theme}';
         let currentAppearance = '${appearance}';
         let stageEl = null;
+        let viewportEl = null;
+        let panCaptureTarget = null;
+        let activePointerId = null;
         let pendingTransform = null;
         let pendingZoomUpdate = null;
         let lastParseError = null;
@@ -771,6 +774,7 @@ export class MermaidPreviewPanel {
             }
             panInitialized = true;
             const viewport = document.getElementById('diagram-viewport');
+            viewportEl = viewport;
             viewport.addEventListener('pointerdown', startPan);
             viewport.addEventListener('pointermove', panMove);
             viewport.addEventListener('pointerup', endPan);
@@ -870,14 +874,28 @@ export class MermaidPreviewPanel {
         };
 
         function startPan(event) {
-            if (event.target.closest('.dropdown')) {
+            if (event.target.closest('.dropdown') || event.target.closest('.toolbar')) {
                 return;
             }
+
+            if (event.button !== undefined && event.button !== 0 && event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+                return;
+            }
+
             isPanning = true;
             lastPanX = event.clientX;
             lastPanY = event.clientY;
-            event.target.setPointerCapture(event.pointerId);
+            activePointerId = event.pointerId;
+            panCaptureTarget = viewportEl || event.target;
+            if (panCaptureTarget?.setPointerCapture) {
+                try {
+                    panCaptureTarget.setPointerCapture(activePointerId);
+                } catch {
+                    panCaptureTarget = null;
+                }
+            }
             document.body.classList.add('is-panning');
+            event.preventDefault();
         }
 
         function panMove(event) {
@@ -889,8 +907,8 @@ export class MermaidPreviewPanel {
             const dy = event.clientY - lastPanY;
             lastPanX = event.clientX;
             lastPanY = event.clientY;
-            panX += dx / currentZoom;
-            panY += dy / currentZoom;
+            panX += dx;
+            panY += dy;
             scheduleTransform();
         }
 
@@ -899,11 +917,15 @@ export class MermaidPreviewPanel {
                 return;
             }
             isPanning = false;
-            try {
-                event.target.releasePointerCapture(event.pointerId);
-            } catch (err) {
-                // ignore
+            if (panCaptureTarget && typeof panCaptureTarget.releasePointerCapture === 'function' && activePointerId !== null) {
+                try {
+                    panCaptureTarget.releasePointerCapture(activePointerId);
+                } catch {
+                    // ignore
+                }
             }
+            panCaptureTarget = null;
+            activePointerId = null;
             document.body.classList.remove('is-panning');
             saveInteractionState();
         }
@@ -1280,6 +1302,11 @@ export class MermaidPreviewPanel {
     </script>
     <style>
         * { box-sizing: border-box; }
+        :root {
+            --mermaid-grab-cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc0MicgaGVpZ2h0PSc0Micgdmlld0JveD0nMCAwIDQyIDQyJz4KICA8ZGVmcz4KICAgIDxmaWx0ZXIgaWQ9J3NoYWRvdycgeD0nLTIwJScgeT0nLTIwJScgd2lkdGg9JzE0MCUnIGhlaWdodD0nMTQwJSc+CiAgICAgIDxmZURyb3BTaGFkb3cgZHg9JzAnIGR5PScxLjUnIHN0ZERldmlhdGlvbj0nMS4xJyBmbG9vZC1jb2xvcj0nIzAwMCcgZmxvb2Qtb3BhY2l0eT0nMC4yNScvPgogICAgPC9maWx0ZXI+CiAgPC9kZWZzPgogIDxnIGZpbHRlcj0ndXJsKCNzaGFkb3cpJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPgogICAgPHBhdGggZmlsbD0nI2ZlZmVmZScgc3Ryb2tlPScjMWMxYzFjJyBzdHJva2Utd2lkdGg9JzInCiAgICAgIGQ9J00xNSA4YTIuNSAyLjUgMCAwIDEgNSAwdjEwaDFWOWEyLjUgMi41IDAgMSAxIDUgMHY5aDF2LTZhMi41IDIuNSAwIDEgMSA1IDB2OWgxdi00YTIuNSAyLjUgMCAxIDEgNSAwdjE1YzAgNS4zLTQuMyA5LjYtOS42IDkuNkgyM2MtMy41IDAtNi40LTIuOS02LjQtNi40VjE4aC0ydjUuMmEyLjUgMi41IDAgMSAxLTUgMFYxM2EyLjUgMi41IDAgMSAxIDUgMHonLz4KICAgIDxwYXRoIGZpbGw9JyNmNGQ3YzYnIHN0cm9rZT0nIzFjMWMxYycgc3Ryb2tlLXdpZHRoPScyJwogICAgICBkPSdNMTIgMTkuNXY1LjdjMCAyLjQgMS45IDQuMyA0LjMgNC4zaC43VjMxYzAgNC40IDMuNiA4IDggOGg0LjVjNS41IDAgMTAtNC41IDEwLTEwdi02Jy8+CiAgPC9nPgo8L3N2Zz4=') 12 12, grab;
+            --mermaid-grabbing-cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc0MicgaGVpZ2h0PSc0Micgdmlld0JveD0nMCAwIDQyIDQyJz4KICA8ZGVmcz4KICAgIDxmaWx0ZXIgaWQ9J3NoYWRvdycgeD0nLTIwJScgeT0nLTIwJScgd2lkdGg9JzE0MCUnIGhlaWdodD0nMTQwJSc+CiAgICAgIDxmZURyb3BTaGFkb3cgZHg9JzAnIGR5PScxLjInIHN0ZERldmlhdGlvbj0nMS4wJyBmbG9vZC1jb2xvcj0nIzAwMCcgZmxvb2Qtb3BhY2l0eT0nMC4yNScvPgogICAgPC9maWx0ZXI+CiAgPC9kZWZzPgogIDxnIGZpbHRlcj0ndXJsKCNzaGFkb3cpJyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPgogICAgPHBhdGggZmlsbD0nI2ZlZmVmZScgc3Ryb2tlPScjMWMxYzFjJyBzdHJva2Utd2lkdGg9JzInCiAgICAgIGQ9J00xMyAxMi41djYuN2EyLjcgMi43IDAgMSAwIDUuNCAwdi04LjRhMi40IDIuNCAwIDEgMSA0LjggMHY2aDEuMnYtNS4yYTIuNCAyLjQgMCAxIDEgNC44IDBWMTloMS4ydi0zLjZhMi40IDIuNCAwIDEgMSA0LjggMHYxMy41YzAgNS43LTQuNiAxMC4zLTEwLjMgMTAuM2gtNC4xYy00LjcgMC04LjUtMy44LTguNS04LjVWMjJoLTEuMmMtMi4xIDAtMy44LTEuNy0zLjgtMy44di01LjdhMi40IDIuNCAwIDAgMSA0LjggMHonLz4KICAgIDxwYXRoIGZpbGw9JyNmNGQ3YzYnIHN0cm9rZT0nIzFjMWMxYycgc3Ryb2tlLXdpZHRoPScyJwogICAgICBkPSdNMTIuMiAyNC45VjI2YzAgNC45IDQgOC45IDguOSA4LjloNC44YzUuMyAwIDkuNi00LjMgOS42LTkuNnYtNC43Jy8+CiAgPC9nPgo8L3N2Zz4=') 12 12, grabbing;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -1334,7 +1361,8 @@ export class MermaidPreviewPanel {
         }
 
         body.is-panning {
-            cursor: grabbing;
+            cursor: var(--mermaid-grabbing-cursor), -webkit-grabbing;
+            cursor: var(--mermaid-grabbing-cursor), grabbing;
         }
 
         .toolbar {
@@ -1391,6 +1419,8 @@ export class MermaidPreviewPanel {
             flex: 1;
             overflow: auto;
             background-color: var(--vscode-editor-background);
+            cursor: var(--mermaid-grab-cursor), -webkit-grab;
+            cursor: var(--mermaid-grab-cursor), grab;
         }
 
         #diagram-stage {
@@ -1423,7 +1453,8 @@ export class MermaidPreviewPanel {
             min-height: 200px;
             transform-origin: top left;
             transition: transform 0.1s ease-out;
-            cursor: grab;
+            cursor: var(--mermaid-grab-cursor), -webkit-grab;
+            cursor: var(--mermaid-grab-cursor), grab;
         }
 
         .diagram-content svg {
@@ -1431,8 +1462,10 @@ export class MermaidPreviewPanel {
             height: auto;
         }
 
+        body.is-panning #diagram-viewport,
         body.is-panning .diagram-content {
-            cursor: grabbing;
+            cursor: var(--mermaid-grabbing-cursor), -webkit-grabbing;
+            cursor: var(--mermaid-grabbing-cursor), grabbing;
         }
 
         .dropdown {
