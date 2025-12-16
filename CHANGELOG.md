@@ -6,6 +6,15 @@
 
 ### Changes
 
+## [1.1.1](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.0...v1.1.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* update README and test diagram, replace icon and improve panel handling ([e6889fa](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/e6889fa73a453b2ec6ee964273cef40268d1e5b5))
+
+
+
 # [1.1.0](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.0.2...v1.1.0) (2025-12-13)
 
 
