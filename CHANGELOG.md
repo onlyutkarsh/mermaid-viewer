@@ -6,6 +6,16 @@
 
 ### Changes
 
+## [1.1.3](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.2...v1.1.3) (2025-12-17)
+
+
+### Bug Fixes
+
+* add command to copy Mermaid diagram code in MermaidCodeLensProvider ([bd5eb0d](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/bd5eb0d8f8c7773b8deb1b3a46739e742ac86a8e))
+* update cursor handling with high-dpi assets in MermaidPreviewPanel ([787f828](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/787f828124c7028e56ee6190b5aee40c9d6b3c08)), closes [hi#dpi](https://github.com/hi/issues/dpi)
+
+
+
 ## [1.1.2](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.1...v1.1.2) (2025-12-16)
 
 
