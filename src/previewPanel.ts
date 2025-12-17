@@ -1465,7 +1465,8 @@ export class MermaidPreviewPanel {
         #diagram-stage,
         .diagram-shell,
         .diagram-content,
-        #diagram-viewport svg {
+        #diagram-viewport svg,
+        #diagram-viewport svg * {
             cursor: url('${GRAB_CURSOR_DATA_URL}') 12 12, -webkit-grab;
             cursor: url('${GRAB_CURSOR_DATA_URL}') 12 12, grab;
         }
@@ -1474,7 +1475,8 @@ export class MermaidPreviewPanel {
         body.is-panning #diagram-stage,
         body.is-panning .diagram-shell,
         body.is-panning .diagram-content,
-        body.is-panning #diagram-viewport svg {
+        body.is-panning #diagram-viewport svg,
+        body.is-panning #diagram-viewport svg * {
             cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, -webkit-grabbing !important;
             cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, grabbing !important;
         }
