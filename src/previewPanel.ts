@@ -5,10 +5,6 @@ import { Logger } from './util/logger';
 type PreviewAppearance = 'matchVSCode' | 'light' | 'dark';
 type PreviewMode = 'all' | 'single';
 
-const GRAB_CURSOR_DATA_URL =
-    'data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20id%3D%22SVGRepo_bgCarrier%22%20stroke-width%3D%220%22%3E%3C%2Fg%3E%3Cg%20id%3D%22SVGRepo_tracerCarrier%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fg%3E%3Cg%20id%3D%22SVGRepo_iconCarrier%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20clip-rule%3D%22evenodd%22%20d%3D%22M13.5001%203.75C13.9143%203.75%2014.2501%204.08579%2014.2501%204.5V7.5V12.75H15.7501V7.5C15.7501%207.08579%2016.0858%206.75%2016.5001%206.75C16.9143%206.75%2017.2501%207.08579%2017.2501%207.5V15C17.2501%2017.8995%2014.8996%2020.25%2012.0001%2020.25V21.75C15.728%2021.75%2018.7501%2018.7279%2018.7501%2015V7.5C18.7501%206.25736%2017.7427%205.25%2016.5001%205.25C16.2371%205.25%2015.9846%205.29512%2015.7501%205.37803V4.5C15.7501%203.25736%2014.7427%202.25%2013.5001%202.25C12.4625%202.25%2011.5889%202.95235%2011.3289%203.90757C11.0724%203.80589%2010.7927%203.75%2010.5001%203.75C9.25742%203.75%208.25006%204.75736%208.25006%206V12.5344L7.77377%2011.5689L7.77221%2011.5657C7.21726%2010.4539%205.86607%2010.0024%204.75422%2010.5574C3.65214%2011.1075%203.1989%2012.4399%203.7315%2013.546L5.03741%2016.7808L5.06205%2016.8354C6.16787%2019.047%207.45919%2020.2994%208.73651%2020.9857C10.0096%2021.6696%2011.194%2021.75%2012.0001%2021.75V20.25C11.3061%2020.25%2010.4069%2020.1803%209.44641%2019.6643C8.49439%2019.1528%207.40758%2018.1618%206.41695%2016.191L5.11239%2012.9597L5.08798%2012.9055C4.903%2012.5349%205.05349%2012.0845%205.4241%2011.8995C5.79428%2011.7147%206.24405%2011.8646%206.42944%2012.2343L8.32743%2016.0818L9.75004%2015.75V14.25H9.75006V6C9.75006%205.58579%2010.0858%205.25%2010.5001%205.25C10.9143%205.25%2011.2501%205.58579%2011.2501%206V12.75H12.7501V6V4.5C12.7501%204.08579%2013.0858%203.75%2013.5001%203.75Z%22%20fill%3D%22%23080341%22%3E%3C%2Fpath%3E%3C%2Fg%3E%3C%2Fsvg%3E';
-const GRABBING_CURSOR_DATA_URL =
-    'data:image/svg+xml,%3Csvg%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20id%3D%22SVGRepo_bgCarrier%22%20stroke-width%3D%220%22%3E%3C%2Fg%3E%3Cg%20id%3D%22SVGRepo_tracerCarrier%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3C%2Fg%3E%3Cg%20id%3D%22SVGRepo_iconCarrier%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20clip-rule%3D%22evenodd%22%20d%3D%22M13.5001%203.75C13.9143%203.75%2014.2501%204.08579%2014.2501%204.5V7.5V12.75H15.7501V7.5C15.7501%207.08579%2016.0858%206.75%2016.5001%206.75C16.9143%206.75%2017.2501%207.08579%2017.2501%207.5V15C17.2501%2017.8995%2014.8996%2020.25%2012.0001%2020.25V21.75C15.728%2021.75%2018.7501%2018.7279%2018.7501%2015V7.5C18.7501%206.25736%2017.7427%205.25%2016.5001%205.25C16.2371%205.25%2015.9846%205.29512%2015.7501%205.37803V4.5C15.7501%203.25736%2014.7427%202.25%2013.5001%202.25C12.4625%202.25%2011.5889%202.95235%2011.3289%203.90757C11.0724%203.80589%2010.7927%203.75%2010.5001%203.75C9.25742%203.75%208.25006%204.75736%208.25006%206V12.5344L7.77377%2011.5689L7.77221%2011.5657C7.21726%2010.4539%205.86607%2010.0024%204.75422%2010.5574C3.65214%2011.1075%203.1989%2012.4399%203.7315%2013.546L5.03741%2016.7808L5.06205%2016.8354C6.16787%2019.047%207.45919%2020.2994%208.73651%2020.9857C10.0096%2021.6696%2011.194%2021.75%2012.0001%2021.75V20.25C11.3061%2020.25%2010.4069%2020.1803%209.44641%2019.6643C8.49439%2019.1528%207.40758%2018.1618%206.41695%2016.191L5.11239%2012.9597L5.08798%2012.9055C4.903%2012.5349%205.05349%2012.0845%205.4241%2011.8995C5.79428%2011.7147%206.24405%2011.8646%206.42944%2012.2343L8.32743%2016.0818L9.75004%2015.75V14.25H9.75006V6C9.75006%205.58579%2010.0858%205.25%2010.5001%205.25C10.9143%205.25%2011.2501%205.58579%2011.2501%206V12.75H12.7501V6V4.5C12.7501%204.08579%2013.0858%203.75%2013.5001%203.75Z%22%20fill%3D%22%23080341%22%3E%3C%2Fpath%3E%3C%2Fg%3E%3C%2Fsvg%3E';
 
 type MermaidBlock = {
     code: string;
@@ -1362,11 +1358,6 @@ export class MermaidPreviewPanel {
             --vscode-inputValidation-errorBorder: #be1100;
         }
 
-        body.is-panning {
-            cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, -webkit-grabbing !important;
-            cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, grabbing !important;
-        }
-
         .toolbar {
             background-color: var(--vscode-editorWidget-background);
             border-bottom: 1px solid var(--vscode-editorWidget-border);
@@ -1421,6 +1412,8 @@ export class MermaidPreviewPanel {
             flex: 1;
             overflow: auto;
             background-color: var(--vscode-editor-background);
+            cursor: grab !important;
+            position: relative;
         }
 
         #diagram-stage {
@@ -1428,6 +1421,7 @@ export class MermaidPreviewPanel {
             min-height: 100%;
             transform-origin: center center;
             will-change: transform;
+            cursor: grab !important;
         }
 
         #diagrams-container {
@@ -1435,6 +1429,19 @@ export class MermaidPreviewPanel {
             display: flex;
             flex-direction: column;
             gap: 32px;
+            cursor: grab !important;
+        }
+
+        body.is-panning #diagram-viewport {
+            cursor: grabbing !important;
+        }
+
+        body.is-panning #diagram-stage {
+            cursor: grabbing !important;
+        }
+
+        body.is-panning #diagrams-container {
+            cursor: grabbing !important;
         }
 
         .diagram-shell {
@@ -1458,27 +1465,26 @@ export class MermaidPreviewPanel {
         .diagram-content svg {
             width: 100%;
             height: auto;
-            cursor: inherit;
         }
 
-        #diagram-viewport,
-        #diagram-stage,
+        #diagram-viewport *,
+        #diagram-stage *,
+        #diagrams-container *,
         .diagram-shell,
+        .diagram-shell *,
         .diagram-content,
-        #diagram-viewport svg,
-        #diagram-viewport svg * {
-            cursor: url('${GRAB_CURSOR_DATA_URL}') 12 12, -webkit-grab;
-            cursor: url('${GRAB_CURSOR_DATA_URL}') 12 12, grab;
+        .diagram-content * {
+            cursor: grab !important;
         }
 
-        body.is-panning #diagram-viewport,
-        body.is-panning #diagram-stage,
+        body.is-panning #diagram-viewport *,
+        body.is-panning #diagram-stage *,
+        body.is-panning #diagrams-container *,
         body.is-panning .diagram-shell,
+        body.is-panning .diagram-shell *,
         body.is-panning .diagram-content,
-        body.is-panning #diagram-viewport svg,
-        body.is-panning #diagram-viewport svg * {
-            cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, -webkit-grabbing !important;
-            cursor: url('${GRABBING_CURSOR_DATA_URL}') 12 12, grabbing !important;
+        body.is-panning .diagram-content * {
+            cursor: grabbing !important;
         }
 
         .dropdown {
