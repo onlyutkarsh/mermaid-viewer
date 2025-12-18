@@ -1,3 +1,16 @@
+# [1.2.0](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.3...v1.2.0) (2025-12-18)
+
+
+### Bug Fixes
+
+* enhance cursor styles for SVG elements in MermaidPreviewPanel ([13ff0e6](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/13ff0e6b0986d2fa2cfa200b66dc0713aeaed787))
+* improve cursor handling during panning in MermaidPreviewPanel ([c131333](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/c131333163accba60d3cdc3542d1518a4420b21e))
+* standardize cursor styles for panning in MermaidPreviewPanel ([ea53025](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/ea53025d53d6a566109727d947b34be9519d4800))
+* update cursor styles and separate marketplace assets, reduce size ([35b3917](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/35b3917ac6df77010df6b9c5bc7db74be33fd444))
+* update cursor styles to use 'all-scroll' for better panning experience in MermaidPreviewPanel ([4e06c46](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/4e06c46c00d0b0f794105e7bcfd5fbe0fae9ab04))
+
+
+
 ## [1.1.3](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.2...v1.1.3) (2025-12-17)
 
 
