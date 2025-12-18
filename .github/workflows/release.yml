@@ -69,6 +69,11 @@ jobs:
       - name: Build extension
         run: npm run package
 
+      - name: Update Changelog
+        run: |
+          npm install --save-dev conventional-changelog-cli
+          npx conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+
       - name: Publish to Open VSX Registry
         id: publish_ovsx
         continue-on-error: true
@@ -96,9 +101,9 @@ jobs:
             exit 1
           fi
 
-      - name: Commit version bump
+      - name: Commit version bump and changelog
         run: |
-          git add package.json package-lock.json
+          git add package.json package-lock.json CHANGELOG.md
           if git diff --staged --quiet; then
             echo "No changes to commit, skipping"
           else

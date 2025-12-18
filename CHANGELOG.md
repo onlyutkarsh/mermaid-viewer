@@ -1,11 +1,3 @@
-## [Unreleased]
-
-### Features
-
-### Bug Fixes
-
-### Changes
-
 ## [1.1.3](https://github.com/onlyutkarsh/mermaid-preview-extension/compare/v1.1.2...v1.1.3) (2025-12-17)
 
 
@@ -71,3 +63,6 @@
 * update icon paths and enhance Mermaid preview functionality with selection change handling ([e011f98](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/e011f9854f405c34d5fc853968da6ad18b15230a))
 * update icons showcase image for improved visual representation ([4103611](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/4103611c4391a938ab208fa01179faa2d12277da))
 * update package metadata and add repository information ([5b64fa9](https://github.com/onlyutkarsh/mermaid-preview-extension/commit/5b64fa9000487d75ca5c4fed6af65afef5cd6173))
+
+
+
