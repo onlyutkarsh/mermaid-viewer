@@ -2,7 +2,7 @@
   "name": "mermaid-diagram-lens",
   "displayName": "Mermaid Live Preview",
   "description": "Live preview for your Mermaid diagrams with independent theming, exports, and focused previews.",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "publisher": "onlyutkarsh",
   "engines": {
     "vscode": "^1.85.0"
