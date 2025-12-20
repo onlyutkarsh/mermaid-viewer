@@ -24,7 +24,7 @@
   "main": "./out/extension.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/onlyutkarsh/mermaid-preview-extension.git"
+    "url": "https://github.com/onlyutkarsh/mermaid-live-preview.git"
   },
   "icon": "images/icon.png",
   "galleryBanner": {

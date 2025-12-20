@@ -17,7 +17,7 @@ A VSCode extension that gives you a live preview of Mermaid diagrams with indepe
 
 ## Demo
 
-![Demo](https://raw.githubusercontent.com/onlyutkarsh/mermaid-preview-extension/main/marketplace/demo.gif)
+![Demo](https://raw.githubusercontent.com/onlyutkarsh/mermaid-live-preview/main/marketplace/demo.gif)
 
 ## Usage
 
@@ -43,7 +43,7 @@ In the preview panel toolbar:
 - A subtle **gutter icon** highlights each Mermaid fence, so you can spot diagrams quickly (it's a visual cue only; use the CodeLens to open the preview).
 - The editor toolbar/title icon still opens the multi-diagram preview, so you can see every Mermaid block at once.
 
-![CodeLens and Gutter Icon](https://raw.githubusercontent.com/onlyutkarsh/mermaid-preview-extension/main/marketplace/preview.webp)
+![CodeLens and Gutter Icon](https://raw.githubusercontent.com/onlyutkarsh/mermaid-live-preview/main/marketplace/preview.webp)
 
 ### Supported Themes
 
