@@ -1,3 +1,12 @@
+## [1.2.3](https://github.com/onlyutkarsh/mermaid-live-preview/compare/v1.2.2...v1.2.3) (2025-12-20)
+
+
+### Bug Fixes
+
+* update extension name from 'Mermaid Live Preview' to 'Mermaid Viewer' in README.md, package.json, and related code ([807ee14](https://github.com/onlyutkarsh/mermaid-live-preview/commit/807ee1417b3c0d1ae92a8d9607b8a653e2e9e2d2))
+
+
+
 ## [1.2.2](https://github.com/onlyutkarsh/mermaid-live-preview/compare/v1.2.1...v1.2.2) (2025-12-20)
 
 
