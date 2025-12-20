@@ -103,7 +103,7 @@ class MermaidGutterDecorator implements vscode.Disposable {
 export function activate(context: vscode.ExtensionContext) {
     const logger = Logger.instance;
     context.subscriptions.push(logger);
-    logger.logInfo('Mermaid Live Preview extension activated');
+    logger.logInfo('Mermaid Viewer extension activated');
     const gutterDecorator = new MermaidGutterDecorator(context.extensionUri);
     context.subscriptions.push(gutterDecorator);
     gutterDecorator.update(vscode.window.activeTextEditor);
@@ -162,7 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Live Preview only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown files.');
                     return;
                 }
 
@@ -295,7 +295,7 @@ export function activate(context: vscode.ExtensionContext) {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Live Preview only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown files.');
                     return;
                 }
 

@@ -1,6 +1,6 @@
-# Mermaid Live Preview
+# Mermaid Viewer
 
-A VSCode extension that gives you a live preview of Mermaid diagrams with independent theme selection, appearance overrides, and export controls. Everything stays local-no accounts, Copilot prompts, or external services-while the dedicated preview surface (plus CodeLens buttons and gutter highlights) keeps multi- and single-diagram workflows fast.
+A VSCode extension that gives you a powerful viewer for Mermaid diagrams with independent theme selection, appearance overrides, and export controls. Everything stays local-no accounts, Copilot prompts, or external services-while the dedicated preview surface (plus CodeLens buttons and gutter highlights) keeps multi- and single-diagram workflows fast.
 
 ## Features
 
@@ -26,9 +26,9 @@ A VSCode extension that gives you a live preview of Mermaid diagrams with indepe
 1. Open a Markdown file containing Mermaid diagrams
 2. Use one of these methods:
    - Click the preview icon in the editor title bar
-   - Right-click in the editor and select "Mermaid Live Preview: Open Preview"
-   - Use Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for "Mermaid Live Preview: Open Preview"
-   - For side-by-side view: "Mermaid Live Preview: Open Preview to the Side"
+   - Right-click in the editor and select "Mermaid Viewer: Open Preview"
+   - Use Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for "Mermaid Viewer: Open Preview"
+   - For side-by-side view: "Mermaid Viewer: Open Preview to the Side"
 
 ### Changing Themes
 
@@ -87,9 +87,9 @@ graph TD
 ````
 ## Commands
 
-- `Mermaid Live Preview: Open Preview` - Shows every Mermaid fence from the active Markdown file in the current editor column.
-- `Mermaid Live Preview: Open Preview to the Side` - Same multi-diagram preview, but always opens in the column beside the editor for live editing.
-- `Mermaid Live Preview: Preview Diagram Here` - Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
+- `Mermaid Viewer: Open Preview` - Shows every Mermaid fence from the active Markdown file in the current editor column.
+- `Mermaid Viewer: Open Preview to the Side` - Same multi-diagram preview, but always opens in the column beside the editor for live editing.
+- `Mermaid Viewer: Preview Diagram Here` - Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
 
 ## Requirements
 
@@ -115,4 +115,4 @@ Found a bug or have a feature request? Please open an issue!
 
 ## License
 
-MIT - if you build on Mermaid Live Preview, please keep the copyright notice intact and include attribution to Utkarsh Shigihalli in your distribution or documentation.
+MIT - if you build on Mermaid Viewer, please keep the copyright notice intact and include attribution to Utkarsh Shigihalli in your distribution or documentation.

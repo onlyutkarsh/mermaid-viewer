@@ -1,7 +1,7 @@
 {
   "name": "mermaid-diagram-lens",
-  "displayName": "Mermaid Live Preview",
-  "description": "Live preview for your Mermaid diagrams with independent theming, exports, and focused previews.",
+  "displayName": "Mermaid Viewer",
+  "description": "View your Mermaid diagrams with independent theming, exports, and focused previews.",
   "version": "1.2.2",
   "publisher": "onlyutkarsh",
   "engines": {
@@ -35,7 +35,7 @@
     "commands": [
       {
         "command": "mermaidLivePreview.showPreview",
-        "title": "Mermaid Live Preview: Open Preview",
+        "title": "Mermaid Viewer: Open Preview",
         "icon": {
           "light": "images/mermaid-gutter.svg",
           "dark": "images/mermaid-gutter.svg"
@@ -43,7 +43,7 @@
       },
       {
         "command": "mermaidLivePreview.showPreviewToSide",
-        "title": "Mermaid Live Preview: Open Preview to the Side",
+        "title": "Mermaid Viewer: Open Preview to the Side",
         "icon": {
           "light": "images/mermaid-gutter.svg",
           "dark": "images/mermaid-gutter.svg"
@@ -51,11 +51,11 @@
       },
       {
         "command": "mermaidLivePreview.showDiagramAtPosition",
-        "title": "Mermaid Live Preview: Preview Diagram Here"
+        "title": "Mermaid Viewer: Preview Diagram Here"
       },
       {
         "command": "mermaidLivePreview.copyDiagramCode",
-        "title": "Mermaid Live Preview: Copy Diagram Code"
+        "title": "Mermaid Viewer: Copy Diagram Code"
       }
     ],
     "menus": {
@@ -75,7 +75,7 @@
       ]
     },
     "configuration": {
-      "title": "Mermaid Live Preview",
+      "title": "Mermaid Viewer",
       "properties": {
         "mermaidLivePreview.theme": {
           "type": "string",

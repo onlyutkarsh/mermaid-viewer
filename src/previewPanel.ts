@@ -68,9 +68,9 @@ export class MermaidPreviewPanel {
         const label = MermaidPreviewPanel._deriveDocumentLabel(document);
         if (mode === 'single') {
             const lineSuffix = typeof lineNumber === 'number' ? `:${lineNumber + 1}` : '';
-            return `Mermaid Live Preview - ${label}${lineSuffix}`;
+            return `Mermaid Viewer - ${label}${lineSuffix}`;
         }
-        return `Mermaid Live Preview - ${label}`;
+        return `Mermaid Viewer - ${label}`;
     }
 
     private static _createWebviewPanel(
