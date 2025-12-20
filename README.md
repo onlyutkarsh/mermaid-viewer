@@ -1,6 +1,6 @@
-# Mermaid Diagram Lens
+# Mermaid Live Preview
 
-A VSCode extension that gives you a focused lens into Mermaid diagrams with independent theme selection, appearance overrides, and export controls. Everything stays local-no accounts, Copilot prompts, or external services-while the dedicated preview surface (plus CodeLens buttons and gutter highlights) keeps multi- and single-diagram workflows fast.
+A VSCode extension that gives you a live preview of Mermaid diagrams with independent theme selection, appearance overrides, and export controls. Everything stays local-no accounts, Copilot prompts, or external services-while the dedicated preview surface (plus CodeLens buttons and gutter highlights) keeps multi- and single-diagram workflows fast.
 
 ## Features
 
@@ -26,9 +26,9 @@ A VSCode extension that gives you a focused lens into Mermaid diagrams with inde
 1. Open a Markdown file containing Mermaid diagrams
 2. Use one of these methods:
    - Click the preview icon in the editor title bar
-   - Right-click in the editor and select "Mermaid Diagram Lens: Open Preview"
-   - Use Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for "Mermaid Diagram Lens: Open Preview"
-   - For side-by-side view: "Mermaid Diagram Lens: Open Preview to the Side"
+   - Right-click in the editor and select "Mermaid Live Preview: Open Preview"
+   - Use Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and search for "Mermaid Live Preview: Open Preview"
+   - For side-by-side view: "Mermaid Live Preview: Open Preview to the Side"
 
 ### Changing Themes
 
@@ -60,16 +60,16 @@ Configure the extension through VSCode settings:
 ```json
 {
   // Default theme for Mermaid diagrams
-  "mermaidLens.theme": "default",
+  "mermaidLivePreview.theme": "default",
 
   // Automatically sync Mermaid theme with VSCode theme
-  "mermaidLens.useVSCodeTheme": false,
+  "mermaidLivePreview.useVSCodeTheme": false,
 
   // Automatically refresh preview on document changes
-  "mermaidLens.autoRefresh": true,
+  "mermaidLivePreview.autoRefresh": true,
 
   // Delay in milliseconds before refreshing preview after changes
-  "mermaidLens.refreshDelay": 500
+  "mermaidLivePreview.refreshDelay": 500
 }
 ```
 
@@ -87,9 +87,9 @@ graph TD
 ````
 ## Commands
 
-- `Mermaid Diagram Lens: Open Preview` - Shows every Mermaid fence from the active Markdown file in the current editor column.
-- `Mermaid Diagram Lens: Open Preview to the Side` - Same multi-diagram preview, but always opens in the column beside the editor for live editing.
-- `Mermaid Diagram Lens: Preview Diagram Here` - Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
+- `Mermaid Live Preview: Open Preview` - Shows every Mermaid fence from the active Markdown file in the current editor column.
+- `Mermaid Live Preview: Open Preview to the Side` - Same multi-diagram preview, but always opens in the column beside the editor for live editing.
+- `Mermaid Live Preview: Preview Diagram Here` - Focuses only the Mermaid block at the current cursor (or the CodeLens/gutter target) and keeps that single-diagram panel in sync while you type.
 
 ## Requirements
 
@@ -104,10 +104,10 @@ graph TD
 
 This extension contributes the following settings:
 
-* `mermaidLens.theme`: Choose the default Mermaid theme
-* `mermaidLens.useVSCodeTheme`: Sync theme with VSCode
-* `mermaidLens.autoRefresh`: Enable/disable auto-refresh
-* `mermaidLens.refreshDelay`: Set refresh delay in milliseconds
+* `mermaidLivePreview.theme`: Choose the default Mermaid theme
+* `mermaidLivePreview.useVSCodeTheme`: Sync theme with VSCode
+* `mermaidLivePreview.autoRefresh`: Enable/disable auto-refresh
+* `mermaidLivePreview.refreshDelay`: Set refresh delay in milliseconds
 
 ## Contributing
 
@@ -115,4 +115,4 @@ Found a bug or have a feature request? Please open an issue!
 
 ## License
 
-MIT - if you build on Mermaid Diagram Lens, please keep the copyright notice intact and include attribution to Utkarsh Shigihalli in your distribution or documentation.
+MIT - if you build on Mermaid Live Preview, please keep the copyright notice intact and include attribution to Utkarsh Shigihalli in your distribution or documentation.

@@ -43,13 +43,13 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
             const range = new vscode.Range(position, position);
             const command: vscode.Command = {
                 title: 'Preview Diagram',
-                command: 'mermaid-preview.showDiagramAtPosition',
+                command: 'mermaidLivePreview.showDiagramAtPosition',
                 arguments: [document.uri, line]
             };
 
             const copyCommand: vscode.Command = {
                 title: 'Copy Mermaid Code',
-                command: 'mermaid-preview.copyDiagramCode',
+                command: 'mermaidLivePreview.copyDiagramCode',
                 arguments: [document.uri, line]
             };
 
@@ -103,7 +103,7 @@ class MermaidGutterDecorator implements vscode.Disposable {
 export function activate(context: vscode.ExtensionContext) {
     const logger = Logger.instance;
     context.subscriptions.push(logger);
-    logger.logInfo('Mermaid Diagram Lens extension activated');
+    logger.logInfo('Mermaid Live Preview extension activated');
     const gutterDecorator = new MermaidGutterDecorator(context.extensionUri);
     context.subscriptions.push(gutterDecorator);
     gutterDecorator.update(vscode.window.activeTextEditor);
@@ -115,7 +115,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(themeChangeListener);
 
     const configChangeListener = vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('mermaidLens.previewAppearance')) {
+        if (event.affectsConfiguration('mermaidLivePreview.previewAppearance')) {
             MermaidPreviewPanel.forEachPanel(panel => panel.refreshAppearance());
         }
     });
@@ -131,7 +131,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     const copyDiagramCodeCommand = vscode.commands.registerCommand(
-        'mermaid-preview.copyDiagramCode',
+        'mermaidLivePreview.copyDiagramCode',
         async (uri: vscode.Uri | undefined, line: number | undefined) => {
             logger.logDebug('Command', 'copyDiagramCode invoked', {
                 uri: uri?.toString() ?? 'undefined',
@@ -162,7 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Diagram Lens only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Live Preview only works with Markdown files.');
                     return;
                 }
 
@@ -197,7 +197,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register command to show preview
     const showPreviewCommand = vscode.commands.registerCommand(
-        'mermaid-preview.showPreview',
+        'mermaidLivePreview.showPreview',
         () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
@@ -217,7 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             const documentUri = editor.document.uri?.toString();
             logger.logDebug('Command', 'Opening preview', {
-                command: 'mermaid-preview.showPreview',
+                command: 'mermaidLivePreview.showPreview',
                 uri: documentUri ?? 'unknown'
             });
 
@@ -231,7 +231,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register command to show preview to the side
     const showPreviewToSideCommand = vscode.commands.registerCommand(
-        'mermaid-preview.showPreviewToSide',
+        'mermaidLivePreview.showPreviewToSide',
         () => {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
@@ -251,7 +251,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             const documentUri = editor.document.uri?.toString();
             logger.logDebug('Command', 'Opening preview to the side', {
-                command: 'mermaid-preview.showPreviewToSide',
+                command: 'mermaidLivePreview.showPreviewToSide',
                 uri: documentUri ?? 'unknown'
             });
 
@@ -264,7 +264,7 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     const showDiagramAtPositionCommand = vscode.commands.registerCommand(
-        'mermaid-preview.showDiagramAtPosition',
+        'mermaidLivePreview.showDiagramAtPosition',
         async (uri: vscode.Uri | undefined, line: number | undefined) => {
             logger.logDebug('Command', 'showDiagramAtPosition invoked', {
                 uri: uri?.toString() ?? 'undefined',
@@ -295,7 +295,7 @@ export function activate(context: vscode.ExtensionContext) {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Diagram Lens only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Live Preview only works with Markdown files.');
                     return;
                 }
 
@@ -322,7 +322,7 @@ export function activate(context: vscode.ExtensionContext) {
     const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument((e) => {
         gutterDecorator.updateForDocument(e.document);
 
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         const autoRefresh = config.get<boolean>('autoRefresh', true);
 
         // Only update if it's a markdown file

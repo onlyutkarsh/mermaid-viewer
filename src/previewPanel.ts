@@ -68,9 +68,9 @@ export class MermaidPreviewPanel {
         const label = MermaidPreviewPanel._deriveDocumentLabel(document);
         if (mode === 'single') {
             const lineSuffix = typeof lineNumber === 'number' ? `:${lineNumber + 1}` : '';
-            return `Mermaid Diagram Preview — ${label}${lineSuffix}`;
+            return `Mermaid Live Preview - ${label}${lineSuffix}`;
         }
-        return `Mermaid Diagram Lens — ${label}`;
+        return `Mermaid Live Preview - ${label}`;
     }
 
     private static _createWebviewPanel(
@@ -79,7 +79,7 @@ export class MermaidPreviewPanel {
         viewColumn: vscode.ViewColumn
     ): vscode.WebviewPanel {
         return vscode.window.createWebviewPanel(
-            'mermaidPreview',
+            'mermaidLivePreview',
             title,
             viewColumn,
             {
@@ -269,7 +269,7 @@ export class MermaidPreviewPanel {
         }
 
         // Get refresh delay from config
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         const delay = config.get<number>('refreshDelay', 500);
 
         // Debounce updates
@@ -316,7 +316,7 @@ export class MermaidPreviewPanel {
 
     private _handleThemeChange(theme: string) {
         // Persist the selection and update the preview
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         config.update('useVSCodeTheme', false, vscode.ConfigurationTarget.Global);
         config.update('theme', theme, vscode.ConfigurationTarget.Global);
         this._render(theme);
@@ -324,12 +324,12 @@ export class MermaidPreviewPanel {
 
     private _saveThemePreference(theme: string) {
         // Save to workspace or global settings
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         config.update('theme', theme, vscode.ConfigurationTarget.Global);
     }
 
     private async _handleAppearanceChange(appearance: PreviewAppearance) {
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         await config.update('previewAppearance', appearance, vscode.ConfigurationTarget.Global);
         this.refreshAppearance();
     }
@@ -566,7 +566,7 @@ export class MermaidPreviewPanel {
     }
 
     private _resolveTheme(overrideTheme?: string): { theme: string; appearance: PreviewAppearance } {
-        const config = vscode.workspace.getConfiguration('mermaidLens');
+        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         const useVSCodeTheme = config.get<boolean>('useVSCodeTheme', false);
         const configuredTheme = config.get<string>('theme', 'default');
         const appearance = config.get<PreviewAppearance>('previewAppearance', 'matchVSCode');

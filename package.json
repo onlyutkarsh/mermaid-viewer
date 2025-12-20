@@ -1,7 +1,7 @@
 {
   "name": "mermaid-diagram-lens",
-  "displayName": "Mermaid Diagram Lens",
-  "description": "Lens into your Mermaid diagrams with independent theming, exports, and focused previews.",
+  "displayName": "Mermaid Live Preview",
+  "description": "Live preview for your Mermaid diagrams with independent theming, exports, and focused previews.",
   "version": "1.2.1",
   "publisher": "onlyutkarsh",
   "engines": {
@@ -34,50 +34,50 @@
   "contributes": {
     "commands": [
       {
-        "command": "mermaid-preview.showPreview",
-        "title": "Mermaid Diagram Lens: Open Preview",
+        "command": "mermaidLivePreview.showPreview",
+        "title": "Mermaid Live Preview: Open Preview",
         "icon": {
           "light": "images/mermaid-gutter.svg",
           "dark": "images/mermaid-gutter.svg"
         }
       },
       {
-        "command": "mermaid-preview.showPreviewToSide",
-        "title": "Mermaid Diagram Lens: Open Preview to the Side",
+        "command": "mermaidLivePreview.showPreviewToSide",
+        "title": "Mermaid Live Preview: Open Preview to the Side",
         "icon": {
           "light": "images/mermaid-gutter.svg",
           "dark": "images/mermaid-gutter.svg"
         }
       },
       {
-        "command": "mermaid-preview.showDiagramAtPosition",
-        "title": "Mermaid Diagram Lens: Preview Diagram Here"
+        "command": "mermaidLivePreview.showDiagramAtPosition",
+        "title": "Mermaid Live Preview: Preview Diagram Here"
       },
       {
-        "command": "mermaid-preview.copyDiagramCode",
-        "title": "Mermaid Diagram Lens: Copy Diagram Code"
+        "command": "mermaidLivePreview.copyDiagramCode",
+        "title": "Mermaid Live Preview: Copy Diagram Code"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "mermaid-preview.showPreviewToSide",
+          "command": "mermaidLivePreview.showPreviewToSide",
           "when": "editorLangId == markdown",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
-          "command": "mermaid-preview.showPreview",
+          "command": "mermaidLivePreview.showPreview",
           "when": "editorLangId == markdown",
           "group": "navigation"
         }
       ]
     },
     "configuration": {
-      "title": "Mermaid Diagram Lens",
+      "title": "Mermaid Live Preview",
       "properties": {
-        "mermaidLens.theme": {
+        "mermaidLivePreview.theme": {
           "type": "string",
           "default": "default",
           "enum": [
@@ -96,22 +96,22 @@
           ],
           "description": "Default theme for Mermaid diagrams"
         },
-        "mermaidLens.useVSCodeTheme": {
+        "mermaidLivePreview.useVSCodeTheme": {
           "type": "boolean",
           "default": false,
           "description": "Automatically sync Mermaid theme with VSCode theme (dark/light)"
         },
-        "mermaidLens.autoRefresh": {
+        "mermaidLivePreview.autoRefresh": {
           "type": "boolean",
           "default": true,
           "description": "Automatically refresh preview on document changes"
         },
-        "mermaidLens.refreshDelay": {
+        "mermaidLivePreview.refreshDelay": {
           "type": "number",
           "default": 500,
           "description": "Delay in milliseconds before refreshing preview after changes"
         },
-        "mermaidLens.previewAppearance": {
+        "mermaidLivePreview.previewAppearance": {
           "type": "string",
           "default": "matchVSCode",
           "enum": [
