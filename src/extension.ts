@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { MermaidPreviewPanel } from './previewPanel';
 import { Logger } from './util/logger';
+import { MermaidFoldingProvider } from './foldingProvider';
 
 function findMermaidFenceStartLines(document: vscode.TextDocument): number[] {
     const text = document.getText();
@@ -18,6 +19,13 @@ function findMermaidFenceStartLines(document: vscode.TextDocument): number[] {
 
 function getMermaidBlockAtLine(document: vscode.TextDocument, line: number): string | undefined {
     const text = document.getText();
+
+    // For standalone .mmd or .mermaid files, return entire content
+    if (document.languageId === 'mermaid') {
+        return text.trim();
+    }
+
+    // For markdown files, extract mermaid code blocks
     const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
     let match: RegExpExecArray | null;
 
@@ -38,6 +46,29 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
         const lenses: vscode.CodeLens[] = [];
 
+        // For standalone .mmd/.mermaid files, add CodeLens at the top
+        if (document.languageId === 'mermaid') {
+            const position = new vscode.Position(0, 0);
+            const range = new vscode.Range(position, position);
+
+            const previewCommand: vscode.Command = {
+                title: 'Preview Diagram',
+                command: 'mermaidLivePreview.showPreviewToSide',
+                arguments: []
+            };
+
+            const copyCommand: vscode.Command = {
+                title: 'Copy Mermaid Code',
+                command: 'mermaidLivePreview.copyDiagramCode',
+                arguments: [document.uri, 0]
+            };
+
+            lenses.push(new vscode.CodeLens(range, previewCommand));
+            lenses.push(new vscode.CodeLens(range, copyCommand));
+            return lenses;
+        }
+
+        // For markdown files, find mermaid code blocks
         for (const line of findMermaidFenceStartLines(document)) {
             const position = new vscode.Position(line, 0);
             const range = new vscode.Range(position, position);
@@ -121,12 +152,33 @@ export function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(configChangeListener);
 
-    // Register CodeLens provider
+    // Register CodeLens provider for both markdown and mermaid files
     const codeLensProvider = new MermaidCodeLensProvider();
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(
             { language: 'markdown', scheme: 'file' },
             codeLensProvider
+        ),
+        vscode.languages.registerCodeLensProvider(
+            { language: 'mermaid', scheme: 'file' },
+            codeLensProvider
+        ),
+        vscode.languages.registerCodeLensProvider(
+            { language: 'mermaid', scheme: 'untitled' },
+            codeLensProvider
+        )
+    );
+
+    // Register Folding provider for Mermaid files
+    const foldingProvider = new MermaidFoldingProvider();
+    context.subscriptions.push(
+        vscode.languages.registerFoldingRangeProvider(
+            { language: 'mermaid', scheme: 'file' },
+            foldingProvider
+        ),
+        vscode.languages.registerFoldingRangeProvider(
+            { language: 'mermaid', scheme: 'untitled' },
+            foldingProvider
         )
     );
 
@@ -157,12 +209,12 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                if (document.languageId !== 'markdown') {
-                    logger.logWarning('copyDiagramCode invoked for non-markdown document', {
+                if (document.languageId !== 'markdown' && document.languageId !== 'mermaid') {
+                    logger.logWarning('copyDiagramCode invoked for unsupported document', {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown and Mermaid files.');
                     return;
                 }
 
@@ -202,16 +254,16 @@ export function activate(context: vscode.ExtensionContext) {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 logger.logWarning('showPreview invoked without an active editor');
-                vscode.window.showInformationMessage('Open a Markdown file containing Mermaid diagrams to preview them.');
+                vscode.window.showInformationMessage('Open a Markdown or Mermaid file containing diagrams to preview them.');
                 return;
             }
 
-            if (editor.document.languageId !== 'markdown') {
-                logger.logWarning('showPreview invoked for non-markdown document', {
+            if (editor.document.languageId !== 'markdown' && editor.document.languageId !== 'mermaid') {
+                logger.logWarning('showPreview invoked for unsupported document', {
                     languageId: editor.document.languageId,
                     uri: editor.document.uri.toString()
                 });
-                vscode.window.showInformationMessage('Mermaid Diagram Lens only works with Markdown files.');
+                vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown and Mermaid files.');
                 return;
             }
 
@@ -236,16 +288,16 @@ export function activate(context: vscode.ExtensionContext) {
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
                 logger.logWarning('showPreviewToSide invoked without an active editor');
-                vscode.window.showInformationMessage('Open a Markdown file containing Mermaid diagrams to preview them.');
+                vscode.window.showInformationMessage('Open a Markdown or Mermaid file containing diagrams to preview them.');
                 return;
             }
 
-            if (editor.document.languageId !== 'markdown') {
-                logger.logWarning('showPreviewToSide invoked for non-markdown document', {
+            if (editor.document.languageId !== 'markdown' && editor.document.languageId !== 'mermaid') {
+                logger.logWarning('showPreviewToSide invoked for unsupported document', {
                     languageId: editor.document.languageId,
                     uri: editor.document.uri.toString()
                 });
-                vscode.window.showInformationMessage('Mermaid Diagram Lens only works with Markdown files.');
+                vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown and Mermaid files.');
                 return;
             }
 
@@ -290,12 +342,12 @@ export function activate(context: vscode.ExtensionContext) {
                     return;
                 }
 
-                if (document.languageId !== 'markdown') {
-                    logger.logWarning('showDiagramAtPosition invoked for non-markdown document', {
+                if (document.languageId !== 'markdown' && document.languageId !== 'mermaid') {
+                    logger.logWarning('showDiagramAtPosition invoked for unsupported document', {
                         languageId: document.languageId,
                         uri: document.uri.toString()
                     });
-                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown files.');
+                    vscode.window.showInformationMessage('Mermaid Viewer only works with Markdown and Mermaid files.');
                     return;
                 }
 
@@ -325,8 +377,9 @@ export function activate(context: vscode.ExtensionContext) {
         const config = vscode.workspace.getConfiguration('mermaidLivePreview');
         const autoRefresh = config.get<boolean>('autoRefresh', true);
 
-        // Only update if it's a markdown file
-        if (autoRefresh && e.document.languageId === 'markdown' && MermaidPreviewPanel.hasOpenPanels()) {
+        // Update if it's a markdown or mermaid file
+        const isSupported = e.document.languageId === 'markdown' || e.document.languageId === 'mermaid';
+        if (autoRefresh && isSupported && MermaidPreviewPanel.hasOpenPanels()) {
             MermaidPreviewPanel.forEachPanel(panel => panel.updateContent(e.document));
         }
     });
@@ -335,9 +388,12 @@ export function activate(context: vscode.ExtensionContext) {
     const changeActiveEditorSubscription = vscode.window.onDidChangeActiveTextEditor((editor) => {
         gutterDecorator.update(editor);
 
-        // Only update if it's a markdown file
-        if (editor && editor.document.languageId === 'markdown' && MermaidPreviewPanel.hasOpenPanels()) {
-            MermaidPreviewPanel.forEachPanel(panel => panel.updateContent(editor.document));
+        // Update if it's a markdown or mermaid file
+        if (editor) {
+            const isSupported = editor.document.languageId === 'markdown' || editor.document.languageId === 'mermaid';
+            if (isSupported && MermaidPreviewPanel.hasOpenPanels()) {
+                MermaidPreviewPanel.forEachPanel(panel => panel.updateContent(editor.document));
+            }
         }
     });
 
@@ -351,7 +407,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const editor = event.textEditor;
-        if (editor.document.languageId !== 'markdown') {
+        const isSupported = editor.document.languageId === 'markdown' || editor.document.languageId === 'mermaid';
+        if (!isSupported) {
             return;
         }
 

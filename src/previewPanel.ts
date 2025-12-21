@@ -543,8 +543,23 @@ export class MermaidPreviewPanel {
     }
 
     private _collectMermaidBlocks(document: vscode.TextDocument, text: string): MermaidBlock[] {
-        const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
         const blocks: MermaidBlock[] = [];
+
+        // For standalone .mmd or .mermaid files, treat entire content as one diagram
+        if (document.languageId === 'mermaid') {
+            const trimmedCode = text.trim();
+            if (trimmedCode) {
+                blocks.push({
+                    code: trimmedCode,
+                    startLine: 0,
+                    endLine: document.lineCount - 1
+                });
+            }
+            return blocks;
+        }
+
+        // For markdown files, extract mermaid code blocks
+        const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
         let match;
 
         while ((match = mermaidRegex.exec(text)) !== null) {

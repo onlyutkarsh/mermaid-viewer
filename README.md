@@ -4,6 +4,7 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 
 ## Features
 
+- **Syntax Highlighting**: Full syntax highlighting for Mermaid diagrams in markdown code blocks and standalone .mmd/.mermaid files
 - **Independent Theme Selection**: Choose from multiple Mermaid themes (default, dark, forest, neutral, base) directly in the preview panel
 - **Optional VSCode Theme Sync**: Toggle option to automatically sync Mermaid theme with your VSCode theme (dark/light)
 - **Live Preview**: Automatic preview updates as you edit your Mermaid diagrams

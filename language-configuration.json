@@ -1,0 +1,48 @@
+{
+  "comments": {
+    "lineComment": "%%"
+  },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "\"", "close": "\"" },
+    { "open": "'", "close": "'" },
+    { "open": "`", "close": "`" }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"],
+    ["`", "`"]
+  ],
+  "folding": {
+    "offSide": true
+  },
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(subgraph|box|class\\s+\\w+\\s*\\{|alt|loop|opt|par|rect|note).*$",
+    "decreaseIndentPattern": "^\\s*(end|end note|\\}).*$"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*(subgraph|box|class\\s+\\w+\\s*\\{|alt|loop|opt|par|rect|note).*$",
+      "action": {
+        "indent": "indent"
+      }
+    },
+    {
+      "beforeText": "^\\s*(end|end note|\\}).*$",
+      "action": {
+        "indent": "outdent"
+      }
+    }
+  ],
+  "wordPattern": "(-?\\d+[\\w.-]*)|([A-Za-z_][\\w.-]*)"
+}

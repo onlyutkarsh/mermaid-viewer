@@ -18,9 +18,7 @@
     "markdown",
     "theme"
   ],
-  "activationEvents": [
-    "onLanguage:markdown"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "repository": {
     "type": "git",
@@ -32,6 +30,37 @@
     "theme": "light"
   },
   "contributes": {
+    "languages": [
+      {
+        "id": "mermaid",
+        "aliases": [
+          "Mermaid",
+          "mermaid"
+        ],
+        "extensions": [
+          ".mmd",
+          ".mermaid"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mermaid",
+        "scopeName": "source.mermaid",
+        "path": "./syntaxes/mermaid.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.mermaid.codeblock",
+        "path": "./syntaxes/mermaid.markdown.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.mermaid": "mermaid"
+        }
+      }
+    ],
     "commands": [
       {
         "command": "mermaidLivePreview.showPreview",
@@ -62,14 +91,14 @@
       "editor/title": [
         {
           "command": "mermaidLivePreview.showPreviewToSide",
-          "when": "editorLangId == markdown",
+          "when": "editorLangId == markdown || editorLangId == mermaid",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
           "command": "mermaidLivePreview.showPreview",
-          "when": "editorLangId == markdown",
+          "when": "editorLangId == markdown || editorLangId == mermaid",
           "group": "navigation"
         }
       ]

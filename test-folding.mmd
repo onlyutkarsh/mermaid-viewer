@@ -1,0 +1,23 @@
+flowchart TB
+    A[Start]
+
+    subgraph Processing
+        B[Step 1]
+        C[Step 2]
+
+        subgraph Details
+            D[Detail 1]
+            E[Detail 2]
+        end
+
+        F[Step 3]
+    end
+
+    subgraph Storage
+        G[Save]
+        H[Backup]
+    end
+
+    A --> B
+    F --> G
+    H --> I[End]

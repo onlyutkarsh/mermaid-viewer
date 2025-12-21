@@ -9,6 +9,17 @@ tsconfig.json
 node_modules
 *.vsix
 test-diagram.md
+test-syntax.md
+test-folding.mmd
+SYNTAX-TESTING.md
+ENHANCED-SYNTAX-TEST.md
+ER-DIAGRAM-TEST.md
+ALL-DIAGRAM-TYPES-TEST.md
+DIAGRAM-SPECIFIC-TEST.md
+BOX-SUBGRAPH-TEST.md
+FOLDING-INDENT-TEST.md
+GRAMMAR-MAINTENANCE.md
+SYNTAX-HIGHLIGHTING-SUMMARY.md
 .github/
 .claude/
 marketplace/
