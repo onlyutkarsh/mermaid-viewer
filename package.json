@@ -178,7 +178,7 @@
     "@typescript-eslint/parser": "^8.49.0",
     "@vscode/vsce": "^3.7.1",
     "conventional-changelog-cli": "^5.0.0",
-    "esbuild": "^0.27.1",
+    "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "ovsx": "^0.10.7",
     "rimraf": "^6.1.2",
