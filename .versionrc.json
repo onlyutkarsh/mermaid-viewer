@@ -1,4 +1,5 @@
 {
+  "header": "# Changelog\n\nAll notable changes to this project will be documented in this file.\n",
   "types": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },

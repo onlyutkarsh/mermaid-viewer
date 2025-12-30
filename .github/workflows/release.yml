@@ -72,6 +72,8 @@ jobs:
       - name: Update Changelog
         run: |
           npx conventional-changelog -p angular -i CHANGELOG.md -s -r 0
+          # Normalize all version headers to use ## (consistent level 2 headers)
+          sed -i 's/^# \(\[[0-9]\)/## \1/g' CHANGELOG.md
 
       - name: Publish to Open VSX Registry
         id: publish_ovsx
@@ -115,6 +117,38 @@ jobs:
           git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
           git push origin "v${{ inputs.version }}"
 
+      - name: Extract changelog for release
+        id: extract_changelog
+        run: |
+          VERSION="${{ inputs.version }}"
+          # Extract the section for this version from CHANGELOG.md
+          # All version headers should now be ## (level 2) after normalization
+          CHANGELOG_SECTION=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") {
+                found=1
+                next
+              }
+            }
+            found && /^###/ { print; next }
+            found && /^\*/ { print; next }
+            found && /^$/ && prev != "" { print; prev="" }
+            found && !/^$/ { print; prev=$0 }
+          ' CHANGELOG.md)
+
+          if [ -z "$CHANGELOG_SECTION" ]; then
+            echo "No changelog content found, will use auto-generated notes only"
+            echo "has_changelog=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changelog=true" >> $GITHUB_OUTPUT
+            {
+              echo "changelog_content<<EOF_CHANGELOG"
+              echo "$CHANGELOG_SECTION"
+              echo "EOF_CHANGELOG"
+            } >> $GITHUB_OUTPUT
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -123,6 +157,7 @@ jobs:
           draft: false
           prerelease: false
           files: "*.vsix"
+          body: ${{ steps.extract_changelog.outputs.has_changelog == 'true' && steps.extract_changelog.outputs.changelog_content || '' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

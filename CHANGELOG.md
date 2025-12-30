@@ -1,8 +1,12 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
 ## [1.3.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.0...v1.3.1) (2025-12-30)
 
 
 
-# [1.3.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.2.3...v1.3.0) (2025-12-21)
+## [1.3.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.2.3...v1.3.0) (2025-12-21)
 
 
 ### Bug Fixes
@@ -44,7 +48,7 @@
 
 
 
-# [1.2.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.1.3...v1.2.0) (2025-12-18)
+## [1.2.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.1.3...v1.2.0) (2025-12-18)
 
 
 ### Bug Fixes
@@ -85,7 +89,7 @@
 
 
 
-# [1.1.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.0.2...v1.1.0) (2025-12-13)
+## [1.1.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.0.2...v1.1.0) (2025-12-13)
 
 
 ### Bug Fixes
