@@ -1,6 +1,6 @@
 import { LogOutputChannel, window, Disposable } from 'vscode';
 
-const CHANNEL_NAME = 'Mermaid Diagram Lens';
+const CHANNEL_NAME = 'Mermaid Viewer';
 
 type Loggable = Record<string, unknown> | unknown[] | string | number | boolean | undefined | null | Error;
 

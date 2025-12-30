@@ -3,3 +3,5 @@ out
 *.vsix
 .vscode-test/
 .claude
+# Environment variables
+.env

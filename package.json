@@ -187,5 +187,8 @@
   },
   "dependencies": {
     "mermaid": "^11.12.2"
+  },
+  "overrides": {
+    "@conventional-changelog/git-client": "^2.0.0"
   }
 }
