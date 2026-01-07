@@ -1,3 +1,12 @@
+## [1.3.3](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.2...v1.3.3) (2026-01-07)
+
+
+### Features
+
+* add keyboard shortcuts functionality and display help message ([5dc5a05](https://github.com/onlyutkarsh/mermaid-viewer/commit/5dc5a05829e0ee23dfb3f61a2c8cc62986fa19fb))
+
+
+
 ## [1.3.2](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.1...v1.3.2) (2026-01-07)
 
 
