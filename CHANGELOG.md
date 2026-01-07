@@ -1,6 +1,16 @@
-# Changelog
+## [1.3.2](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.1...v1.3.2) (2026-01-07)
 
-All notable changes to this project will be documented in this file.
+
+### Bug Fixes
+
+* Normalize changelog headers and extract section for release notes ([ba7728b](https://github.com/onlyutkarsh/mermaid-viewer/commit/ba7728b09f5c0ec38952a76b74cbd77dcf1b0cdb))
+
+
+### Features
+
+* improve logging and load the extension after VSCode finishes its initial startup (non-blocking) ([46f2438](https://github.com/onlyutkarsh/mermaid-viewer/commit/46f2438aba89507c7323be4e1a7acd0a086f8c6c))
+
+
 
 ## [1.3.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.0...v1.3.1) (2025-12-30)
 
