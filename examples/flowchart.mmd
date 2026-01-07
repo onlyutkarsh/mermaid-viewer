@@ -1,0 +1,14 @@
+flowchart TD
+    Start([Start]) --> Input[/Input Data/]
+    Input --> Process[Process Data]
+    Process --> Decision{Is Valid?}
+    Decision -->|Yes| Success[Display Success]
+    Decision -->|No| Error[Display Error]
+    Success --> End([End])
+    Error --> End
+
+    style Start fill:#90EE90
+    style End fill:#FFB6C1
+    style Decision fill:#FFD700
+    style Error fill:#FF6B6B
+    style Success fill:#4CAF50

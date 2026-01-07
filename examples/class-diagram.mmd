@@ -1,0 +1,30 @@
+classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound()
+        +eat()
+    }
+
+    class Dog {
+        +String breed
+        +bark()
+        +fetch()
+    }
+
+    class Cat {
+        +String color
+        +meow()
+        +scratch()
+    }
+
+    class Owner {
+        +String name
+        +String email
+        +adoptPet()
+        +feedPet()
+    }
+
+    Animal <|-- Dog
+    Animal <|-- Cat
+    Owner "1" --> "*" Animal : owns

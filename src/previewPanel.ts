@@ -155,7 +155,6 @@ export class MermaidPreviewPanel {
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             (message) => {
-                this._logger.logDebug('WebviewMessage', `Received ${message.command}`, message);
                 switch (message.command) {
                     case 'changeTheme':
                         this._handleThemeChange(message.theme);
@@ -164,11 +163,6 @@ export class MermaidPreviewPanel {
                         this._saveThemePreference(message.theme);
                         break;
                     case 'exportDiagram':
-                        this._logger.logDebug('Export', 'Received export request from webview', {
-                            format: message.format,
-                            index: message.index,
-                            dataLength: message.data?.length
-                        });
                         this._handleExportDiagram(message.data, message.format, message.index);
                         break;
                     case 'exportError':
@@ -191,10 +185,8 @@ export class MermaidPreviewPanel {
                         });
                         break;
                     case 'lifecycleEvent':
-                        this._logger.logInfo('Webview lifecycle event', {
-                            document: this._currentDocument?.uri.toString() ?? 'unknown',
-                            status: message.status ?? 'unknown',
-                            detail: message.documentId ?? 'unknown'
+                        this._logger.logDebug('WebviewLifecycle', message.status ?? 'unknown', {
+                            documentId: message.documentId ?? 'unknown'
                         });
                         break;
                     case 'changeAppearance':
@@ -314,29 +306,42 @@ export class MermaidPreviewPanel {
         this._renderSingle(lineNumber, blocks);
     }
 
-    private _handleThemeChange(theme: string) {
-        // Persist the selection and update the preview
-        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-        config.update('useVSCodeTheme', false, vscode.ConfigurationTarget.Global);
-        config.update('theme', theme, vscode.ConfigurationTarget.Global);
-        this._render(theme);
+    private async _handleThemeChange(theme: string) {
+        try {
+            // Persist the selection and update the preview
+            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+            await config.update('useVSCodeTheme', false, vscode.ConfigurationTarget.Global);
+            await config.update('theme', theme, vscode.ConfigurationTarget.Global);
+            this._render(theme);
+        } catch (error) {
+            this._logger.logError('Failed to update theme configuration', error instanceof Error ? error : new Error(String(error)));
+            vscode.window.showErrorMessage(`Failed to update theme: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
-    private _saveThemePreference(theme: string) {
-        // Save to workspace or global settings
-        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-        config.update('theme', theme, vscode.ConfigurationTarget.Global);
+    private async _saveThemePreference(theme: string) {
+        try {
+            // Save to workspace or global settings
+            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+            await config.update('theme', theme, vscode.ConfigurationTarget.Global);
+        } catch (error) {
+            // Silently fail - non-critical operation, user already has visual feedback
+            this._logger.logDebug('SaveThemePreference', 'Failed to persist theme', { theme, error: error instanceof Error ? error.message : String(error) });
+        }
     }
 
     private async _handleAppearanceChange(appearance: PreviewAppearance) {
-        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-        await config.update('previewAppearance', appearance, vscode.ConfigurationTarget.Global);
-        this.refreshAppearance();
+        try {
+            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+            await config.update('previewAppearance', appearance, vscode.ConfigurationTarget.Global);
+            this.refreshAppearance();
+        } catch (error) {
+            this._logger.logError('Failed to update appearance configuration', error instanceof Error ? error : new Error(String(error)));
+            vscode.window.showErrorMessage(`Failed to update appearance: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     private async _handleExportDiagram(data: string, format: string, index: number) {
-        this._logger.logDebug('Export', 'Handling export request', { format, index, dataLength: data?.length });
-
         // Show save dialog
         const filters: { [name: string]: string[] } = {};
         if (format === 'svg') {
@@ -347,13 +352,10 @@ export class MermaidPreviewPanel {
             filters['JPEG Image'] = ['jpg', 'jpeg'];
         }
 
-        this._logger.logDebug('Export', 'Showing save dialog', { filters });
         const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file(`mermaid-diagram-${index + 1}.${format}`),
             filters: filters
         });
-
-        this._logger.logInfo('Export dialog closed', { path: uri?.fsPath ?? 'cancelled' });
 
         if (!uri) {
             return; // User cancelled
@@ -379,10 +381,6 @@ export class MermaidPreviewPanel {
             return;
         }
 
-        this._logger.logDebug('Render', 'Rendering all diagrams', {
-            document: this._currentDocument.uri.toString(),
-            mode: 'all'
-        });
         const mermaidCode = this._extractMermaidCode(this._currentDocument);
 
         if (!mermaidCode) {
@@ -429,12 +427,6 @@ export class MermaidPreviewPanel {
             return;
         }
 
-        this._logger.logDebug('Render', 'Rendering single diagram', {
-            document: this._currentDocument.uri.toString(),
-            mode: 'single',
-            blockIndex: targetIndex
-        });
-
         if (typeof lineNumber === 'number') {
             this._singleLine = lineNumber;
         } else if (typeof this._singleLine !== 'number') {
@@ -457,50 +449,26 @@ export class MermaidPreviewPanel {
     }
 
     private _extractMermaidCode(document: vscode.TextDocument): string | null {
-        const text = document.getText();
-        this._logger.logDebug('MermaidDetection', 'Document snapshot', {
-            length: text.length,
-            preview: text.substring(0, 200)
-        });
+        try {
+            const text = document.getText();
+            const blocks = this._getMermaidBlocks(document, text);
 
-        const blocks = this._getMermaidBlocks(document, text);
-        this._logger.logDebug('MermaidDetection', 'Number of matches found', { count: blocks.length });
+            if (blocks.length === 0) {
+                return null;
+            }
 
-        if (blocks.length === 0) {
-            // Try alternative patterns to help debug
-            const hasTripleBacktick = text.includes('```');
-            const hasMermaidKeyword = text.includes('mermaid');
-            this._logger.logDebug('MermaidDetection', 'Fallback flags', {
-                hasTripleBacktick,
-                hasMermaidKeyword
-            });
+            const diagrams = blocks.map(block => block.code);
 
-            // Check for the pattern without newline requirements
-            const simpleRegex = /```mermaid/g;
-            const simpleMatches = [...text.matchAll(simpleRegex)];
-            this._logger.logDebug('MermaidDetection', 'Simple pattern matches', { count: simpleMatches.length });
+            if (!diagrams.length) {
+                return null;
+            }
 
+            return JSON.stringify(diagrams);
+        } catch (error) {
+            // Only log unexpected errors (JSON.stringify should never fail with our data)
+            this._logger.logError('Unexpected error extracting Mermaid code', error instanceof Error ? error : new Error(String(error)));
             return null;
         }
-
-        const diagrams = blocks.map(block => block.code);
-
-        this._logger.logDebug('MermaidDetection', 'Valid diagrams detected', { count: diagrams.length });
-
-        if (!diagrams.length) {
-            return null;
-        }
-
-        return JSON.stringify(diagrams);
-    }
-
-    private _extractMermaidCodeAtLine(document: vscode.TextDocument, lineNumber: number): string | null {
-        const blocks = this._getMermaidBlocks(document);
-        const index = this._findBlockIndexForLine(document, lineNumber, blocks);
-        if (typeof index !== 'number') {
-            return null;
-        }
-        return JSON.stringify([blocks[index].code]);
     }
 
     private _findBlockIndexForLine(
@@ -543,41 +511,47 @@ export class MermaidPreviewPanel {
     }
 
     private _collectMermaidBlocks(document: vscode.TextDocument, text: string): MermaidBlock[] {
-        const blocks: MermaidBlock[] = [];
+        try {
+            const blocks: MermaidBlock[] = [];
 
-        // For standalone .mmd or .mermaid files, treat entire content as one diagram
-        if (document.languageId === 'mermaid') {
-            const trimmedCode = text.trim();
-            if (trimmedCode) {
+            // For standalone .mmd or .mermaid files, treat entire content as one diagram
+            if (document.languageId === 'mermaid') {
+                const trimmedCode = text.trim();
+                if (trimmedCode) {
+                    blocks.push({
+                        code: trimmedCode,
+                        startLine: 0,
+                        endLine: document.lineCount - 1
+                    });
+                }
+                return blocks;
+            }
+
+            // For markdown files, extract mermaid code blocks
+            const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
+            let match;
+
+            while ((match = mermaidRegex.exec(text)) !== null) {
+                const diagramCode = match[1]?.trim();
+                if (!diagramCode) {
+                    continue;
+                }
+
+                const startPos = document.positionAt(match.index);
+                const endPos = document.positionAt(match.index + match[0].length);
                 blocks.push({
-                    code: trimmedCode,
-                    startLine: 0,
-                    endLine: document.lineCount - 1
+                    code: diagramCode,
+                    startLine: startPos.line,
+                    endLine: endPos.line
                 });
             }
+
             return blocks;
+        } catch (error) {
+            // Log because regex parsing failure is unexpected
+            this._logger.logError('Unexpected error collecting Mermaid blocks', error instanceof Error ? error : new Error(String(error)));
+            return [];
         }
-
-        // For markdown files, extract mermaid code blocks
-        const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
-        let match;
-
-        while ((match = mermaidRegex.exec(text)) !== null) {
-            const diagramCode = match[1]?.trim();
-            if (!diagramCode) {
-                continue;
-            }
-
-            const startPos = document.positionAt(match.index);
-            const endPos = document.positionAt(match.index + match[0].length);
-            blocks.push({
-                code: diagramCode,
-                startLine: startPos.line,
-                endLine: endPos.line
-            });
-        }
-
-        return blocks;
     }
 
     private _resolveTheme(overrideTheme?: string): { theme: string; appearance: PreviewAppearance } {
@@ -629,28 +603,26 @@ export class MermaidPreviewPanel {
         appearance: PreviewAppearance,
         documentId?: string
     ): string {
-        const diagrams = JSON.parse(mermaidCode);
-        const escapedDiagrams = diagrams.map((code: string) =>
-            code.replace(/\\/g, '\\\\')
-                .replace(/`/g, '\\`')
-                .replace(/\$/g, '\\$')
-        );
-        const appearanceClass = this._getAppearanceClass(appearance);
-        const mermaidScriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(
-                this._extensionUri,
-                'out',
-                'mermaid',
-                'dist',
-                'mermaid.esm.min.mjs'
-            )
-        );
-        this._logger.logDebug('Render', 'Resolved Mermaid runtime', {
-            uri: mermaidScriptUri.toString()
-        });
+        try {
+            const diagrams = JSON.parse(mermaidCode);
+            const escapedDiagrams = diagrams.map((code: string) =>
+                code.replace(/\\/g, '\\\\')
+                    .replace(/`/g, '\\`')
+                    .replace(/\$/g, '\\$')
+            );
+            const appearanceClass = this._getAppearanceClass(appearance);
+            const mermaidScriptUri = webview.asWebviewUri(
+                vscode.Uri.joinPath(
+                    this._extensionUri,
+                    'out',
+                    'mermaid',
+                    'dist',
+                    'mermaid.esm.min.mjs'
+                )
+            );
 
-        const docId = documentId ?? 'unknown';
-        const nonce = this._generateNonce();
+            const docId = documentId ?? 'unknown';
+            const nonce = this._generateNonce();
 
         return `<!DOCTYPE html>
 <html lang="en">
@@ -1641,6 +1613,10 @@ export class MermaidPreviewPanel {
     </div>
 </body>
 </html>`;
+        } catch (error) {
+            this._logger.logError('Failed to generate webview HTML', error instanceof Error ? error : new Error(String(error)));
+            return this._getErrorHtml('Failed to render diagram preview. See output log for details.');
+        }
     }
     private _getErrorHtml(message: string): string {
         return `<!DOCTYPE html>

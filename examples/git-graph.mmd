@@ -1,0 +1,37 @@
+gitGraph
+    commit id: "Initial commit"
+    commit id: "Add basic structure"
+
+    branch develop
+    checkout develop
+    commit id: "Setup development env"
+    commit id: "Add core features"
+
+    branch feature-login
+    checkout feature-login
+    commit id: "Add login UI"
+    commit id: "Implement authentication"
+    commit id: "Add tests"
+
+    checkout develop
+    merge feature-login
+
+    branch feature-dashboard
+    checkout feature-dashboard
+    commit id: "Create dashboard layout"
+    commit id: "Add widgets"
+
+    checkout develop
+    commit id: "Fix bug #123"
+
+    checkout feature-dashboard
+    commit id: "Polish dashboard"
+
+    checkout develop
+    merge feature-dashboard
+
+    checkout main
+    merge develop tag: "v1.0.0"
+
+    checkout develop
+    commit id: "Start v1.1 features"

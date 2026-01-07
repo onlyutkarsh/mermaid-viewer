@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Server
+    participant Database
+
+    User->>Browser: Enter credentials
+    Browser->>Server: POST /login
+    activate Server
+    Server->>Database: Query user
+    activate Database
+    Database-->>Server: User data
+    deactivate Database
+
+    alt Valid credentials
+        Server-->>Browser: 200 OK + Token
+        Browser-->>User: Redirect to dashboard
+    else Invalid credentials
+        Server-->>Browser: 401 Unauthorized
+        Browser-->>User: Show error message
+    end
+    deactivate Server

@@ -95,7 +95,7 @@ class MermaidCodeLensProvider implements vscode.CodeLensProvider {
 class MermaidGutterDecorator implements vscode.Disposable {
     private readonly decorationType: vscode.TextEditorDecorationType;
 
-    constructor(private readonly extensionUri: vscode.Uri) {
+    constructor(extensionUri: vscode.Uri) {
         const iconPath = vscode.Uri.joinPath(extensionUri, 'images', 'mermaid-gutter.svg');
         this.decorationType = vscode.window.createTextEditorDecorationType({
             gutterIconPath: iconPath,
@@ -134,7 +134,8 @@ class MermaidGutterDecorator implements vscode.Disposable {
 export function activate(context: vscode.ExtensionContext) {
     const logger = Logger.instance;
     context.subscriptions.push(logger);
-    logger.logInfo('Mermaid Viewer extension activated');
+    logger.logInfo('Mermaid Viewer extension activating...');
+
     const gutterDecorator = new MermaidGutterDecorator(context.extensionUri);
     context.subscriptions.push(gutterDecorator);
     gutterDecorator.update(vscode.window.activeTextEditor);
@@ -154,30 +155,23 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register CodeLens provider for both markdown and mermaid files
     const codeLensProvider = new MermaidCodeLensProvider();
-    context.subscriptions.push(
-        vscode.languages.registerCodeLensProvider(
-            { language: 'markdown', scheme: 'file' },
-            codeLensProvider
-        ),
-        vscode.languages.registerCodeLensProvider(
-            { language: 'mermaid', scheme: 'file' },
-            codeLensProvider
-        ),
-        vscode.languages.registerCodeLensProvider(
-            { language: 'mermaid', scheme: 'untitled' },
-            codeLensProvider
-        )
-    );
-
-    // Register Folding provider for Mermaid files
     const foldingProvider = new MermaidFoldingProvider();
+
+    // Batch all provider registrations
     context.subscriptions.push(
-        vscode.languages.registerFoldingRangeProvider(
-            { language: 'mermaid', scheme: 'file' },
-            foldingProvider
+        vscode.languages.registerCodeLensProvider(
+            [
+                { language: 'markdown', scheme: 'file' },
+                { language: 'mermaid', scheme: 'file' },
+                { language: 'mermaid', scheme: 'untitled' }
+            ],
+            codeLensProvider
         ),
         vscode.languages.registerFoldingRangeProvider(
-            { language: 'mermaid', scheme: 'untitled' },
+            [
+                { language: 'mermaid', scheme: 'file' },
+                { language: 'mermaid', scheme: 'untitled' }
+            ],
             foldingProvider
         )
     );
@@ -185,11 +179,6 @@ export function activate(context: vscode.ExtensionContext) {
     const copyDiagramCodeCommand = vscode.commands.registerCommand(
         'mermaidLivePreview.copyDiagramCode',
         async (uri: vscode.Uri | undefined, line: number | undefined) => {
-            logger.logDebug('Command', 'copyDiagramCode invoked', {
-                uri: uri?.toString() ?? 'undefined',
-                line: line ?? 'undefined'
-            });
-
             try {
                 let document: vscode.TextDocument | undefined;
                 let targetLine = line;
@@ -267,12 +256,6 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            const documentUri = editor.document.uri?.toString();
-            logger.logDebug('Command', 'Opening preview', {
-                command: 'mermaidLivePreview.showPreview',
-                uri: documentUri ?? 'unknown'
-            });
-
             MermaidPreviewPanel.createOrShow(
                 context.extensionUri,
                 editor.document,
@@ -301,12 +284,6 @@ export function activate(context: vscode.ExtensionContext) {
                 return;
             }
 
-            const documentUri = editor.document.uri?.toString();
-            logger.logDebug('Command', 'Opening preview to the side', {
-                command: 'mermaidLivePreview.showPreviewToSide',
-                uri: documentUri ?? 'unknown'
-            });
-
             MermaidPreviewPanel.createOrShow(
                 context.extensionUri,
                 editor.document,
@@ -318,11 +295,6 @@ export function activate(context: vscode.ExtensionContext) {
     const showDiagramAtPositionCommand = vscode.commands.registerCommand(
         'mermaidLivePreview.showDiagramAtPosition',
         async (uri: vscode.Uri | undefined, line: number | undefined) => {
-            logger.logDebug('Command', 'showDiagramAtPosition invoked', {
-                uri: uri?.toString() ?? 'undefined',
-                line: line ?? 'undefined'
-            });
-
             try {
                 let document: vscode.TextDocument | undefined;
                 let targetLine = line;
@@ -430,6 +402,8 @@ export function activate(context: vscode.ExtensionContext) {
         visibleEditorsSubscription,
         selectionChangeSubscription
     );
+
+    logger.logInfo('Mermaid Viewer extension activated successfully');
 }
 
 export function deactivate() {}

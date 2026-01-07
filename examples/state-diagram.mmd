@@ -1,0 +1,26 @@
+stateDiagram-v2
+    [*] --> Idle
+
+    Idle --> Loading : User clicks button
+    Loading --> Success : Data loaded
+    Loading --> Error : Load failed
+
+    Success --> Idle : Reset
+    Error --> Idle : Retry
+    Error --> [*] : Cancel
+
+    Success --> Editing : User clicks edit
+    Editing --> Saving : Save clicked
+    Saving --> Success : Save successful
+    Saving --> Error : Save failed
+
+    state Loading {
+        [*] --> FetchingData
+        FetchingData --> ParsingData
+        ParsingData --> [*]
+    }
+
+    state Success {
+        [*] --> DisplayingData
+        DisplayingData --> [*]
+    }

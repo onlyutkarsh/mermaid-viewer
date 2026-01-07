@@ -28,41 +28,39 @@ export class Logger implements Disposable {
     }
 
     logInfo(message: string, data?: Loggable): void {
-        this.channel.info(message);
         if (data !== undefined) {
-            this.channel.info(this.stringify(data));
+            this.channel.info(`${message} ${this.stringify(data)}`);
+        } else {
+            this.channel.info(message);
         }
     }
 
     logWarning(message: string, data?: Loggable): void {
-        this.channel.warn(message);
         if (data !== undefined) {
-            this.channel.warn(this.stringify(data));
+            this.channel.warn(`${message} ${this.stringify(data)}`);
+        } else {
+            this.channel.warn(message);
         }
     }
 
     logDebug(category: string, message: string, context?: Loggable): void {
-        const prefix = `[${category}] ${message}`;
-        this.channel.debug(prefix);
         if (context !== undefined) {
-            this.channel.debug(`  Context: ${this.stringify(context)}`);
+            this.channel.debug(`[${category}] ${message} - ${this.stringify(context)}`);
+        } else {
+            this.channel.debug(`[${category}] ${message}`);
         }
     }
 
     logError(message: string, error?: Loggable): void {
-        this.channel.error(message);
         if (error instanceof Error) {
-            if (error.message) {
-                this.channel.error(error.message);
-            }
+            this.channel.error(`${message} - ${error.message}`);
             if (error.stack) {
                 this.channel.error(error.stack);
             }
-            return;
-        }
-
-        if (error !== undefined) {
-            this.channel.error(this.stringify(error));
+        } else if (error !== undefined) {
+            this.channel.error(`${message} ${this.stringify(error)}`);
+        } else {
+            this.channel.error(message);
         }
     }
 
@@ -80,13 +78,40 @@ export class Logger implements Disposable {
         }
 
         if (typeof data === 'number' || typeof data === 'boolean') {
-            return JSON.stringify(data);
+            return String(data);
         }
 
-        try {
-            return JSON.stringify(data, null, 2);
-        } catch (error) {
-            return `[[Unable to stringify log payload: ${error}]]`;
+        if (Array.isArray(data)) {
+            const items = data.map(item => this.stringifyValue(item)).join(', ');
+            return `[${items}]`;
         }
+
+        if (typeof data === 'object') {
+            const entries = Object.entries(data)
+                .map(([key, value]) => `${key}=${this.stringifyValue(value)}`)
+                .join(' ');
+            return entries;
+        }
+
+        return String(data);
+    }
+
+    private stringifyValue(value: unknown): string {
+        if (value === undefined || value === null) {
+            return String(value);
+        }
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (typeof value === 'number' || typeof value === 'boolean') {
+            return String(value);
+        }
+        if (Array.isArray(value)) {
+            return `[${value.length} items]`;
+        }
+        if (typeof value === 'object') {
+            return '[object]';
+        }
+        return String(value);
     }
 }
