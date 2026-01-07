@@ -192,6 +192,9 @@ export class MermaidPreviewPanel {
                     case 'changeAppearance':
                         this._handleAppearanceChange(message.appearance as PreviewAppearance);
                         break;
+                    case 'showKeyboardShortcuts':
+                        this._showKeyboardShortcuts();
+                        break;
                 }
             },
             null,
@@ -339,6 +342,23 @@ export class MermaidPreviewPanel {
             this._logger.logError('Failed to update appearance configuration', error instanceof Error ? error : new Error(String(error)));
             vscode.window.showErrorMessage(`Failed to update appearance: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    private _showKeyboardShortcuts() {
+        const message = 'Keyboard Shortcuts';
+        const detail = [
+            'Zoom:',
+            '  +  or  =     Zoom in',
+            '  -            Zoom out',
+            '  r            Reset view',
+            '',
+            'Pan:',
+            '  ↑ ↓ ← →      Arrow keys to pan around',
+            ''
+        ].join('\n');
+
+        vscode.window.showInformationMessage(message, { modal: true, detail });
+        this._logger.logInfo('Displayed keyboard shortcuts help');
     }
 
     private async _handleExportDiagram(data: string, format: string, index: number) {
@@ -1238,8 +1258,82 @@ export class MermaidPreviewPanel {
             scheduleZoomUpdate();
             scheduleTransform();
             bindToolbarControls();
+            bindKeyboardShortcuts();
             vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
         });
+
+        function bindKeyboardShortcuts() {
+            document.addEventListener('keydown', (event) => {
+                // Ignore keyboard shortcuts when typing in input fields
+                if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+                    return;
+                }
+
+                // Ignore if modifier keys are pressed (except for Shift on +)
+                if (event.ctrlKey || event.metaKey || event.altKey) {
+                    return;
+                }
+
+                const key = event.key.toLowerCase();
+
+                switch (key) {
+                    // Zoom in with + or =
+                    case '+':
+                    case '=':
+                        event.preventDefault();
+                        zoomIn();
+                        break;
+
+                    // Zoom out with -
+                    case '-':
+                    case '_':
+                        event.preventDefault();
+                        zoomOut();
+                        break;
+
+                    // Reset view with r
+                    case 'r':
+                        event.preventDefault();
+                        zoomReset();
+                        break;
+
+                    // Pan with arrow keys (smooth movement)
+                    case 'arrowup':
+                        event.preventDefault();
+                        panY += 30;
+                        scheduleTransform();
+                        saveInteractionState();
+                        break;
+
+                    case 'arrowdown':
+                        event.preventDefault();
+                        panY -= 30;
+                        scheduleTransform();
+                        saveInteractionState();
+                        break;
+
+                    case 'arrowleft':
+                        event.preventDefault();
+                        panX += 30;
+                        scheduleTransform();
+                        saveInteractionState();
+                        break;
+
+                    case 'arrowright':
+                        event.preventDefault();
+                        panX -= 30;
+                        scheduleTransform();
+                        saveInteractionState();
+                        break;
+                }
+            });
+        }
+
+        function showKeyboardShortcuts() {
+            vscode.postMessage({
+                command: 'showKeyboardShortcuts'
+            });
+        }
 
         function bindToolbarControls() {
             const actionMap = new Map([
@@ -1253,6 +1347,11 @@ export class MermaidPreviewPanel {
                     btn.addEventListener('click', handler);
                 });
             });
+
+            const keyboardIcon = document.getElementById('keyboard-shortcuts-icon');
+            if (keyboardIcon) {
+                keyboardIcon.addEventListener('click', showKeyboardShortcuts);
+            }
 
             document.querySelectorAll('[data-direction]').forEach(btn => {
                 const dir = Number(btn.dataset.direction);
@@ -1537,6 +1636,31 @@ export class MermaidPreviewPanel {
             text-align: center;
         }
 
+        .keyboard-shortcuts-hint {
+            flex: 1;
+            justify-content: flex-end;
+            border-right: none;
+        }
+
+        .shortcuts-icon {
+            font-size: 32px;
+            opacity: 0.6;
+            cursor: pointer;
+            user-select: none;
+            display: inline-block;
+            padding: 0 4px;
+            transition: opacity 0.2s ease, transform 0.1s ease;
+        }
+
+        .shortcuts-icon:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .shortcuts-icon:active {
+            transform: scale(0.95);
+        }
+
         .error {
             color: var(--vscode-errorForeground);
             background-color: var(--vscode-inputValidation-errorBackground);
@@ -1578,6 +1702,9 @@ export class MermaidPreviewPanel {
             <button id="prev-diagram" data-direction="-1">◀</button>
             <span id="diagram-indicator"></span>
             <button id="next-diagram" data-direction="1">▶</button>
+        </div>
+        <div class="toolbar-group keyboard-shortcuts-hint">
+            <span class="shortcuts-icon" id="keyboard-shortcuts-icon" title="Click for keyboard shortcuts">⌨</span>
         </div>
         <div class="toolbar-group dropdown">
             <button class="action-btn" id="theme-button" data-dropdown-toggle="theme">Theme ▾</button>
