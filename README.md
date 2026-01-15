@@ -9,7 +9,9 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 - **Optional VSCode Theme Sync**: Toggle option to automatically sync Mermaid theme with your VSCode theme (dark/light)
 - **Live Preview**: Automatic preview updates as you edit your Mermaid diagrams
 - **Rich Preview Toolbar**: Zoom, pan, reset, navigate between diagrams, and change the preview chrome (match VS Code, light, or dark) without leaving the panel
-- **Export Options**: Save any diagram as SVG, PNG, or JPG right from the preview toolbar
+- **Keyboard Shortcuts**: Use `+`/`-` to zoom, `R` to reset, and arrow keys to pan around diagrams
+- **Export Options**: Save any diagram as SVG, PNG (1x-4x), or JPG (1x-4x) right from the preview toolbar. Dimensions are displayed in the menu, so you know exactly what you're exporting
+- **Copy to Clipboard**: Copy diagrams directly to your clipboard as SVG, PNG, or JPG for quick pasting into other apps
 - **On-Document Shortcuts**: Click the CodeLens button or gutter icon on each mermaid fenced block to open the preview (to the side) without leaving the editor
 - **Side-by-Side View**: Open preview beside your editor for convenient editing
 - **Theme Persistence**: Save your preferred theme as default

@@ -1,6 +1,13 @@
 {
-  "envmanager.exampleFilePlaceholder": "<your-value-here>",
-  "envmanager.syncMappings": {
-    ".env": [".env.example", ".env.local.example", ".env.test.example"],
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "biomejs.biome",
+  "[typescript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "biomejs.biome"
   }
 }

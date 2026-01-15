@@ -19,7 +19,7 @@
     "theme"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
   "repository": {
@@ -156,6 +156,19 @@
             "Always use the dark preview chrome"
           ],
           "description": "Appearance of the preview chrome regardless of VS Code theme"
+        },
+        "mermaidLivePreview.panelTitleStyle": {
+          "type": "string",
+          "default": "full",
+          "enum": [
+            "full",
+            "fileNameOnly"
+          ],
+          "enumDescriptions": [
+            "Show 'Mermaid Viewer - filename'",
+            "Show only the filename"
+          ],
+          "description": "Style of the preview panel title"
         }
       }
     }
@@ -168,20 +181,20 @@
     "copy-mermaid": "shx rm -rf out/mermaid && shx mkdir -p out/mermaid/dist/chunks && shx cp node_modules/mermaid/dist/mermaid.esm.min.mjs out/mermaid/dist/ && shx cp -r node_modules/mermaid/dist/chunks/mermaid.esm.min out/mermaid/dist/chunks/",
     "compile": "tsc -p ./ && npm run copy-mermaid",
     "watch": "npm run copy-mermaid && tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src",
+    "format": "biome format --write src",
     "package": "vsce package",
     "deploy": "vsce publish",
     "publish:ovsx": "ovsx publish"
   },
   "devDependencies": {
-    "@types/node": "^25.0.3",
+    "@biomejs/biome": "^2.3.11",
+    "@types/node": "^18.19.0",
     "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^8.52.0",
-    "@typescript-eslint/parser": "^8.52.0",
     "@vscode/vsce": "^3.7.1",
     "conventional-changelog-cli": "^5.0.0",
     "esbuild": "^0.27.2",
-    "eslint": "^9.39.2",
     "ovsx": "^0.10.8",
     "rimraf": "^6.1.2",
     "shx": "^0.4.0",

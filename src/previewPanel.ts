@@ -1,650 +1,828 @@
-import * as path from 'path';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { Logger } from './util/logger';
 
 type PreviewAppearance = 'matchVSCode' | 'light' | 'dark';
 type PreviewMode = 'all' | 'single';
 
-
 type MermaidBlock = {
-    code: string;
-    startLine: number;
-    endLine: number;
+	code: string;
+	startLine: number;
+	endLine: number;
 };
 
 export class MermaidPreviewPanel {
-    private static readonly _panels = new Set<MermaidPreviewPanel>();
-    private readonly _panel: vscode.WebviewPanel;
-    private readonly _extensionUri: vscode.Uri;
-    private readonly _logger: Logger;
-    private readonly _blockCache = new Map<string, { version: number; blocks: MermaidBlock[] }>();
-    private readonly _documentUri: string;
-    private _disposables: vscode.Disposable[] = [];
-    private _updateTimeout: NodeJS.Timeout | undefined;
-    private _currentDocument: vscode.TextDocument | undefined;
-    private _mode: PreviewMode = 'all';
-    private _singleLine: number | undefined;
-    private _singleBlockIndex: number | undefined;
-    private _singleBlockStartLine: number | undefined;
-    private _singleBlockEndLine: number | undefined;
-    private _isDisposed = false;
-
-    public static forEachPanel(callback: (panel: MermaidPreviewPanel) => void) {
-        for (const panel of MermaidPreviewPanel._panels) {
-            callback(panel);
-        }
-    }
-
-    public static hasOpenPanels(): boolean {
-        return MermaidPreviewPanel._panels.size > 0;
-    }
-
-    private static _findMatchingPanel(
-        document: vscode.TextDocument,
-        mode: PreviewMode,
-        lineNumber?: number
-    ): MermaidPreviewPanel | undefined {
-        for (const panel of MermaidPreviewPanel._panels) {
-            if (panel._matches(document, mode, lineNumber)) {
-                return panel;
-            }
-        }
-        return undefined;
-    }
-
-    private static _deriveDocumentLabel(document: vscode.TextDocument): string {
-        if (document.uri.scheme === 'untitled') {
-            const parts = document.uri.path.split('/');
-            return parts[parts.length - 1] || 'Untitled';
-        }
-        return path.basename(document.uri.fsPath);
-    }
-
-    private static _buildPanelTitle(
-        document: vscode.TextDocument,
-        mode: PreviewMode,
-        lineNumber?: number
-    ): string {
-        const label = MermaidPreviewPanel._deriveDocumentLabel(document);
-        if (mode === 'single') {
-            const lineSuffix = typeof lineNumber === 'number' ? `:${lineNumber + 1}` : '';
-            return `Mermaid Viewer - ${label}${lineSuffix}`;
-        }
-        return `Mermaid Viewer - ${label}`;
-    }
-
-    private static _createWebviewPanel(
-        extensionUri: vscode.Uri,
-        title: string,
-        viewColumn: vscode.ViewColumn
-    ): vscode.WebviewPanel {
-        return vscode.window.createWebviewPanel(
-            'mermaidLivePreview',
-            title,
-            viewColumn,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true,
-                localResourceRoots: [
-                    extensionUri,
-                    vscode.Uri.joinPath(extensionUri, 'out')
-                ]
-            }
-        );
-    }
-
-    public static createOrShow(
-        extensionUri: vscode.Uri,
-        document: vscode.TextDocument,
-        viewColumn: vscode.ViewColumn
-    ) {
-        const title = MermaidPreviewPanel._buildPanelTitle(document, 'all');
-        const panel = MermaidPreviewPanel._createWebviewPanel(
-            extensionUri,
-            title,
-            viewColumn
-        );
-        new MermaidPreviewPanel(panel, extensionUri, document, 'all');
-    }
-
-    public static createOrShowSingle(
-        extensionUri: vscode.Uri,
-        document: vscode.TextDocument,
-        lineNumber: number,
-        viewColumn: vscode.ViewColumn
-    ) {
-        const existing = MermaidPreviewPanel._findMatchingPanel(document, 'single', lineNumber);
-        if (existing) {
-            existing._panel.reveal(viewColumn);
-            existing.handleSelectionChange(document, lineNumber);
-            return;
-        }
-
-        const title = MermaidPreviewPanel._buildPanelTitle(document, 'single', lineNumber);
-        const panel = MermaidPreviewPanel._createWebviewPanel(
-            extensionUri,
-            title,
-            viewColumn
-        );
-
-        new MermaidPreviewPanel(panel, extensionUri, document, 'single', lineNumber);
-    }
-
-    private constructor(
-        panel: vscode.WebviewPanel,
-        extensionUri: vscode.Uri,
-        document: vscode.TextDocument,
-        mode: PreviewMode,
-        singleLine?: number
-    ) {
-        this._panel = panel;
-        this._extensionUri = extensionUri;
-        this._currentDocument = document;
-        this._documentUri = document.uri.toString();
-        this._logger = Logger.instance;
-        this._mode = mode;
-        this._singleLine = singleLine;
-        MermaidPreviewPanel._panels.add(this);
-
-        // Set the webview's initial html content
-        this._render();
-
-        // Listen for when the panel is disposed
-        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-
-        // Handle messages from the webview
-        this._panel.webview.onDidReceiveMessage(
-            (message) => {
-                switch (message.command) {
-                    case 'changeTheme':
-                        this._handleThemeChange(message.theme);
-                        break;
-                    case 'saveThemePreference':
-                        this._saveThemePreference(message.theme);
-                        break;
-                    case 'exportDiagram':
-                        this._handleExportDiagram(message.data, message.format, message.index);
-                        break;
-                    case 'exportError':
-                        this._logger.logError('Webview reported export error', message.error ?? 'Unknown error');
-                        vscode.window.showErrorMessage(`Failed to export diagram: ${message.error ?? 'Unknown error'}`);
-                        break;
-                    case 'renderError':
-                        this._logger.logError('Mermaid diagram render failed', {
-                            document: this._currentDocument?.uri.toString() ?? 'unknown',
-                            index: message.index,
-                            line: message.line ?? null,
-                            details: message.message ?? 'Unknown error'
-                        });
-                        break;
-                    case 'webviewError':
-                        this._logger.logError('Webview runtime error', {
-                            document: this._currentDocument?.uri.toString() ?? 'unknown',
-                            message: message.message ?? 'Unknown error',
-                            stack: message.stack ?? 'no-stack'
-                        });
-                        break;
-                    case 'lifecycleEvent':
-                        this._logger.logDebug('WebviewLifecycle', message.status ?? 'unknown', {
-                            documentId: message.documentId ?? 'unknown'
-                        });
-                        break;
-                    case 'changeAppearance':
-                        this._handleAppearanceChange(message.appearance as PreviewAppearance);
-                        break;
-                    case 'showKeyboardShortcuts':
-                        this._showKeyboardShortcuts();
-                        break;
-                }
-            },
-            null,
-            this._disposables
-        );
-    }
-
-    private _render(overrideTheme?: string) {
-        if (this._isDisposed) {
-            this._logger.logWarning('Render skipped because panel is disposed');
-            return;
-        }
-
-        if (this._mode === 'single' && this._singleLine !== undefined) {
-            this._renderSingle(this._singleLine, undefined, overrideTheme);
-        } else {
-            this._renderAll(overrideTheme);
-        }
-    }
-
-    private _matches(document: vscode.TextDocument, mode: PreviewMode, lineNumber?: number): boolean {
-        if (document.uri.toString() !== this._documentUri) {
-            return false;
-        }
-
-        if (mode === 'all') {
-            return this._mode === 'all';
-        }
-
-        if (this._mode !== 'single') {
-            return false;
-        }
-
-        if (typeof lineNumber !== 'number') {
-            return true;
-        }
-
-        if (
-            typeof this._singleBlockStartLine === 'number' &&
-            typeof this._singleBlockEndLine === 'number'
-        ) {
-            return lineNumber >= this._singleBlockStartLine && lineNumber <= this._singleBlockEndLine;
-        }
-
-        if (typeof this._singleLine === 'number') {
-            return lineNumber === this._singleLine;
-        }
-
-        return false;
-    }
-
-    public updateContent(document: vscode.TextDocument) {
-        if (this._isDisposed) {
-            this._logger.logWarning('updateContent ignored because panel is disposed');
-            return;
-        }
-
-        if (document.uri.toString() !== this._documentUri) {
-            return;
-        }
-
-        this._currentDocument = document;
-
-        // Clear existing timeout
-        if (this._updateTimeout) {
-            clearTimeout(this._updateTimeout);
-        }
-
-        // Get refresh delay from config
-        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-        const delay = config.get<number>('refreshDelay', 500);
-
-        // Debounce updates
-        this._updateTimeout = setTimeout(() => {
-            this._render();
-        }, delay);
-    }
-
-    public handleSelectionChange(document: vscode.TextDocument, lineNumber: number) {
-        if (this._mode !== 'single') {
-            return;
-        }
-
-        if (document.uri.toString() !== this._documentUri) {
-            return;
-        }
-
-        this._currentDocument = document;
-
-        if (typeof lineNumber !== 'number') {
-            return;
-        }
-
-        const blocks = this._getMermaidBlocks(document);
-        const blockIndex = this._findBlockIndexForLine(document, lineNumber, blocks);
-
-        if (typeof blockIndex !== 'number') {
-            return;
-        }
-
-        if (typeof this._singleBlockIndex === 'number') {
-            if (blockIndex !== this._singleBlockIndex) {
-                return;
-            }
-
-            this._singleLine = lineNumber;
-            return;
-        }
-
-        this._singleLine = lineNumber;
-        this._singleBlockIndex = blockIndex;
-        this._renderSingle(lineNumber, blocks);
-    }
-
-    private async _handleThemeChange(theme: string) {
-        try {
-            // Persist the selection and update the preview
-            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-            await config.update('useVSCodeTheme', false, vscode.ConfigurationTarget.Global);
-            await config.update('theme', theme, vscode.ConfigurationTarget.Global);
-            this._render(theme);
-        } catch (error) {
-            this._logger.logError('Failed to update theme configuration', error instanceof Error ? error : new Error(String(error)));
-            vscode.window.showErrorMessage(`Failed to update theme: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    private async _saveThemePreference(theme: string) {
-        try {
-            // Save to workspace or global settings
-            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-            await config.update('theme', theme, vscode.ConfigurationTarget.Global);
-        } catch (error) {
-            // Silently fail - non-critical operation, user already has visual feedback
-            this._logger.logDebug('SaveThemePreference', 'Failed to persist theme', { theme, error: error instanceof Error ? error.message : String(error) });
-        }
-    }
-
-    private async _handleAppearanceChange(appearance: PreviewAppearance) {
-        try {
-            const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-            await config.update('previewAppearance', appearance, vscode.ConfigurationTarget.Global);
-            this.refreshAppearance();
-        } catch (error) {
-            this._logger.logError('Failed to update appearance configuration', error instanceof Error ? error : new Error(String(error)));
-            vscode.window.showErrorMessage(`Failed to update appearance: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    private _showKeyboardShortcuts() {
-        const message = 'Keyboard Shortcuts';
-        const detail = [
-            'Zoom:',
-            '  +  or  =     Zoom in',
-            '  -            Zoom out',
-            '  r            Reset view',
-            '',
-            'Pan:',
-            '  ↑ ↓ ← →      Arrow keys to pan around',
-            ''
-        ].join('\n');
-
-        vscode.window.showInformationMessage(message, { modal: true, detail });
-        this._logger.logInfo('Displayed keyboard shortcuts help');
-    }
-
-    private async _handleExportDiagram(data: string, format: string, index: number) {
-        // Show save dialog
-        const filters: { [name: string]: string[] } = {};
-        if (format === 'svg') {
-            filters['SVG Image'] = ['svg'];
-        } else if (format === 'png') {
-            filters['PNG Image'] = ['png'];
-        } else if (format === 'jpg') {
-            filters['JPEG Image'] = ['jpg', 'jpeg'];
-        }
-
-        const uri = await vscode.window.showSaveDialog({
-            defaultUri: vscode.Uri.file(`mermaid-diagram-${index + 1}.${format}`),
-            filters: filters
-        });
-
-        if (!uri) {
-            return; // User cancelled
-        }
-
-        // Write the file
-        try {
-            const buffer = Buffer.from(data, 'base64');
-            await vscode.workspace.fs.writeFile(uri, buffer);
-            vscode.window.showInformationMessage(`Diagram exported to ${uri.fsPath}`);
-            this._logger.logInfo('Diagram exported successfully', { path: uri.fsPath });
-        } catch (error) {
-            this._logger.logError('Failed to export diagram', error instanceof Error ? error : new Error(String(error)));
-            vscode.window.showErrorMessage(`Failed to export diagram: ${error}`);
-        }
-    }
-
-    private _renderAll(overrideTheme?: string) {
-        const webview = this._panel.webview;
-
-        if (!this._currentDocument) {
-            webview.html = this._getErrorHtml('No document to preview');
-            return;
-        }
-
-        const mermaidCode = this._extractMermaidCode(this._currentDocument);
-
-        if (!mermaidCode) {
-            webview.html = this._getErrorHtml(
-                'No Mermaid diagram found. Wrap your diagram in ```mermaid code blocks.'
-            );
-            return;
-        }
-
-        const { theme, appearance } = this._resolveTheme(overrideTheme);
-        webview.html = this._getHtmlForWebview(
-            webview,
-            mermaidCode,
-            theme,
-            appearance,
-            this._currentDocument?.uri.toString()
-        );
-        this._updatePanelTitle();
-    }
-
-    private _renderSingle(lineNumber?: number, precomputedBlocks?: MermaidBlock[], overrideTheme?: string) {
-        const webview = this._panel.webview;
-
-        if (!this._currentDocument) {
-            webview.html = this._getErrorHtml('No document to preview');
-            return;
-        }
-
-        const blocks = precomputedBlocks ?? this._getMermaidBlocks(this._currentDocument);
-        let targetIndex = this._singleBlockIndex;
-
-        if (typeof targetIndex !== 'number' && typeof lineNumber === 'number') {
-            targetIndex = this._findBlockIndexForLine(this._currentDocument, lineNumber, blocks);
-            this._singleBlockIndex = targetIndex;
-        }
-
-        const targetBlock = typeof targetIndex === 'number' ? blocks[targetIndex] : undefined;
-
-        if (!targetBlock) {
-            this._singleBlockStartLine = undefined;
-            this._singleBlockEndLine = undefined;
-            this._updatePanelTitle();
-            webview.html = this._getErrorHtml('No Mermaid diagram found at this position.');
-            return;
-        }
-
-        if (typeof lineNumber === 'number') {
-            this._singleLine = lineNumber;
-        } else if (typeof this._singleLine !== 'number') {
-            this._singleLine = targetBlock.startLine;
-        }
-
-        this._singleBlockStartLine = targetBlock.startLine;
-        this._singleBlockEndLine = targetBlock.endLine;
-
-        const mermaidCode = JSON.stringify([targetBlock.code]);
-        const { theme, appearance } = this._resolveTheme(overrideTheme);
-        webview.html = this._getHtmlForWebview(
-            webview,
-            mermaidCode,
-            theme,
-            appearance,
-            this._currentDocument?.uri.toString()
-        );
-        this._updatePanelTitle();
-    }
-
-    private _extractMermaidCode(document: vscode.TextDocument): string | null {
-        try {
-            const text = document.getText();
-            const blocks = this._getMermaidBlocks(document, text);
-
-            if (blocks.length === 0) {
-                return null;
-            }
-
-            const diagrams = blocks.map(block => block.code);
-
-            if (!diagrams.length) {
-                return null;
-            }
-
-            return JSON.stringify(diagrams);
-        } catch (error) {
-            // Only log unexpected errors (JSON.stringify should never fail with our data)
-            this._logger.logError('Unexpected error extracting Mermaid code', error instanceof Error ? error : new Error(String(error)));
-            return null;
-        }
-    }
-
-    private _findBlockIndexForLine(
-        document: vscode.TextDocument,
-        lineNumber: number,
-        precomputedBlocks?: MermaidBlock[]
-    ): number | undefined {
-        const blocks = precomputedBlocks ?? this._getMermaidBlocks(document);
-        const idx = blocks.findIndex(block => lineNumber >= block.startLine && lineNumber <= block.endLine);
-        return idx >= 0 ? idx : undefined;
-    }
-
-    private _getMermaidBlocks(document: vscode.TextDocument, cachedText?: string): MermaidBlock[] {
-        const cacheKey = document.uri.toString();
-        const cached = this._blockCache.get(cacheKey);
-
-        if (cached && cached.version === document.version) {
-            return cached.blocks;
-        }
-
-        const text = cachedText ?? document.getText();
-        const blocks = this._collectMermaidBlocks(document, text);
-        this._blockCache.set(cacheKey, { version: document.version, blocks });
-        return blocks;
-    }
-
-    private _updatePanelTitle() {
-        if (!this._currentDocument) {
-            return;
-        }
-
-        const lineHint = this._mode === 'single'
-            ? (this._singleBlockStartLine ?? this._singleLine)
-            : undefined;
-        this._panel.title = MermaidPreviewPanel._buildPanelTitle(
-            this._currentDocument,
-            this._mode,
-            typeof lineHint === 'number' ? lineHint : undefined
-        );
-    }
-
-    private _collectMermaidBlocks(document: vscode.TextDocument, text: string): MermaidBlock[] {
-        try {
-            const blocks: MermaidBlock[] = [];
-
-            // For standalone .mmd or .mermaid files, treat entire content as one diagram
-            if (document.languageId === 'mermaid') {
-                const trimmedCode = text.trim();
-                if (trimmedCode) {
-                    blocks.push({
-                        code: trimmedCode,
-                        startLine: 0,
-                        endLine: document.lineCount - 1
-                    });
-                }
-                return blocks;
-            }
-
-            // For markdown files, extract mermaid code blocks
-            const mermaidRegex = /```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
-            let match;
-
-            while ((match = mermaidRegex.exec(text)) !== null) {
-                const diagramCode = match[1]?.trim();
-                if (!diagramCode) {
-                    continue;
-                }
-
-                const startPos = document.positionAt(match.index);
-                const endPos = document.positionAt(match.index + match[0].length);
-                blocks.push({
-                    code: diagramCode,
-                    startLine: startPos.line,
-                    endLine: endPos.line
-                });
-            }
-
-            return blocks;
-        } catch (error) {
-            // Log because regex parsing failure is unexpected
-            this._logger.logError('Unexpected error collecting Mermaid blocks', error instanceof Error ? error : new Error(String(error)));
-            return [];
-        }
-    }
-
-    private _resolveTheme(overrideTheme?: string): { theme: string; appearance: PreviewAppearance } {
-        const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-        const useVSCodeTheme = config.get<boolean>('useVSCodeTheme', false);
-        const configuredTheme = config.get<string>('theme', 'default');
-        const appearance = config.get<PreviewAppearance>('previewAppearance', 'matchVSCode');
-
-        let theme = overrideTheme || configuredTheme;
-
-        if (useVSCodeTheme && !overrideTheme) {
-            if (appearance === 'light') {
-                theme = 'default';
-            } else if (appearance === 'dark') {
-                theme = 'dark';
-            } else {
-                const colorTheme = vscode.window.activeColorTheme;
-                theme = colorTheme.kind === vscode.ColorThemeKind.Dark ? 'dark' : 'default';
-            }
-        }
-
-        return { theme, appearance };
-    }
-
-    private _generateNonce(): string {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        let result = '';
-        for (let i = 0; i < 32; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
-    }
-
-    private _getAppearanceClass(appearance: PreviewAppearance): string {
-        switch (appearance) {
-            case 'light':
-                return 'appearance-light';
-            case 'dark':
-                return 'appearance-dark';
-            default:
-                return 'appearance-match';
-        }
-    }
-
-    private _getHtmlForWebview(
-        webview: vscode.Webview,
-        mermaidCode: string,
-        theme: string,
-        appearance: PreviewAppearance,
-        documentId?: string
-    ): string {
-        try {
-            const diagrams = JSON.parse(mermaidCode);
-            const escapedDiagrams = diagrams.map((code: string) =>
-                code.replace(/\\/g, '\\\\')
-                    .replace(/`/g, '\\`')
-                    .replace(/\$/g, '\\$')
-            );
-            const appearanceClass = this._getAppearanceClass(appearance);
-            const mermaidScriptUri = webview.asWebviewUri(
-                vscode.Uri.joinPath(
-                    this._extensionUri,
-                    'out',
-                    'mermaid',
-                    'dist',
-                    'mermaid.esm.min.mjs'
-                )
-            );
-
-            const docId = documentId ?? 'unknown';
-            const nonce = this._generateNonce();
-
-        return `<!DOCTYPE html>
+	private static readonly _panels = new Set<MermaidPreviewPanel>();
+	private readonly _panel: vscode.WebviewPanel;
+	private readonly _extensionUri: vscode.Uri;
+	private readonly _logger: Logger;
+	private readonly _blockCache = new Map<
+		string,
+		{ version: number; blocks: MermaidBlock[] }
+	>();
+	private readonly _documentUri: string;
+	private _disposables: vscode.Disposable[] = [];
+	private _updateTimeout: NodeJS.Timeout | undefined;
+	private _currentDocument: vscode.TextDocument | undefined;
+	private _mode: PreviewMode = 'all';
+	private _singleLine: number | undefined;
+	private _singleBlockIndex: number | undefined;
+	private _singleBlockStartLine: number | undefined;
+	private _singleBlockEndLine: number | undefined;
+	private _isDisposed = false;
+
+	public static forEachPanel(callback: (panel: MermaidPreviewPanel) => void) {
+		for (const panel of MermaidPreviewPanel._panels) {
+			callback(panel);
+		}
+	}
+
+	public static hasOpenPanels(): boolean {
+		return MermaidPreviewPanel._panels.size > 0;
+	}
+
+	private static _findMatchingPanel(
+		document: vscode.TextDocument,
+		mode: PreviewMode,
+		lineNumber?: number,
+	): MermaidPreviewPanel | undefined {
+		for (const panel of MermaidPreviewPanel._panels) {
+			if (panel._matches(document, mode, lineNumber)) {
+				return panel;
+			}
+		}
+		return undefined;
+	}
+
+	private static _deriveDocumentLabel(document: vscode.TextDocument): string {
+		if (document.uri.scheme === 'untitled') {
+			const parts = document.uri.path.split('/');
+			return parts[parts.length - 1] || 'Untitled';
+		}
+		return path.basename(document.uri.fsPath);
+	}
+
+	private static _buildPanelTitle(
+		document: vscode.TextDocument,
+		mode: PreviewMode,
+		lineNumber?: number,
+	): string {
+		const label = MermaidPreviewPanel._deriveDocumentLabel(document);
+		const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+		const titleStyle = config.get<string>('panelTitleStyle', 'full');
+		const useFileNameOnly = titleStyle === 'fileNameOnly';
+
+		if (mode === 'single') {
+			const lineSuffix =
+				typeof lineNumber === 'number' ? `:${lineNumber + 1}` : '';
+			return useFileNameOnly
+				? `${label}${lineSuffix}`
+				: `Mermaid Viewer - ${label}${lineSuffix}`;
+		}
+		return useFileNameOnly ? label : `Mermaid Viewer - ${label}`;
+	}
+
+	private static _createWebviewPanel(
+		extensionUri: vscode.Uri,
+		title: string,
+		viewColumn: vscode.ViewColumn,
+	): vscode.WebviewPanel {
+		return vscode.window.createWebviewPanel(
+			'mermaidLivePreview',
+			title,
+			viewColumn,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true,
+				localResourceRoots: [
+					extensionUri,
+					vscode.Uri.joinPath(extensionUri, 'out'),
+				],
+			},
+		);
+	}
+
+	public static createOrShow(
+		extensionUri: vscode.Uri,
+		document: vscode.TextDocument,
+		viewColumn: vscode.ViewColumn,
+	) {
+		const title = MermaidPreviewPanel._buildPanelTitle(document, 'all');
+		const panel = MermaidPreviewPanel._createWebviewPanel(
+			extensionUri,
+			title,
+			viewColumn,
+		);
+		new MermaidPreviewPanel(panel, extensionUri, document, 'all');
+	}
+
+	public static createOrShowSingle(
+		extensionUri: vscode.Uri,
+		document: vscode.TextDocument,
+		lineNumber: number,
+		viewColumn: vscode.ViewColumn,
+	) {
+		const existing = MermaidPreviewPanel._findMatchingPanel(
+			document,
+			'single',
+			lineNumber,
+		);
+		if (existing) {
+			existing._panel.reveal(viewColumn);
+			existing.handleSelectionChange(document, lineNumber);
+			return;
+		}
+
+		const title = MermaidPreviewPanel._buildPanelTitle(
+			document,
+			'single',
+			lineNumber,
+		);
+		const panel = MermaidPreviewPanel._createWebviewPanel(
+			extensionUri,
+			title,
+			viewColumn,
+		);
+
+		new MermaidPreviewPanel(
+			panel,
+			extensionUri,
+			document,
+			'single',
+			lineNumber,
+		);
+	}
+
+	private constructor(
+		panel: vscode.WebviewPanel,
+		extensionUri: vscode.Uri,
+		document: vscode.TextDocument,
+		mode: PreviewMode,
+		singleLine?: number,
+	) {
+		this._panel = panel;
+		this._extensionUri = extensionUri;
+		this._currentDocument = document;
+		this._documentUri = document.uri.toString();
+		this._logger = Logger.instance;
+		this._mode = mode;
+		this._singleLine = singleLine;
+		MermaidPreviewPanel._panels.add(this);
+
+		// Set the webview's initial html content
+		this._render();
+
+		// Listen for when the panel is disposed
+		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+		// Handle messages from the webview
+		this._panel.webview.onDidReceiveMessage(
+			(message) => {
+				switch (message.command) {
+					case 'changeTheme':
+						this._handleThemeChange(message.theme);
+						break;
+					case 'saveThemePreference':
+						this._saveThemePreference(message.theme);
+						break;
+					case 'exportDiagram':
+						this._handleExportDiagram(
+							message.data,
+							message.format,
+							message.index,
+						);
+						break;
+					case 'exportError':
+						this._logger.logError(
+							'Webview reported export error',
+							message.error ?? 'Unknown error',
+						);
+						vscode.window.showErrorMessage(
+							`Failed to export diagram: ${message.error ?? 'Unknown error'}`,
+						);
+						break;
+					case 'copyDiagram':
+						this._handleCopyDiagram(message.data, message.format);
+						break;
+					case 'copySuccess': {
+						const requestedFormat = String(
+							message.format ?? 'diagram',
+						).toUpperCase();
+						const actualFormat = String(
+							message.actualFormat ?? message.format ?? 'diagram',
+						).toUpperCase();
+						const downgraded =
+							typeof message.actualFormat === 'string' &&
+							message.actualFormat !== message.format;
+						const infoMessage = downgraded
+							? `${actualFormat} copied to clipboard (requested ${requestedFormat}).`
+							: `${actualFormat} copied to clipboard`;
+						vscode.window.showInformationMessage(infoMessage);
+						this._logger.logInfo('Diagram copied to clipboard', {
+							requestedFormat: message.format ?? 'unknown',
+							actualFormat: message.actualFormat ?? message.format ?? 'unknown',
+							downgraded,
+						});
+						break;
+					}
+					case 'copyError':
+						this._logger.logError(
+							'Webview reported copy error',
+							message.error ?? 'Unknown error',
+						);
+						vscode.window.showErrorMessage(
+							`Failed to copy diagram: ${message.error ?? 'Unknown error'}`,
+						);
+						break;
+					case 'renderError':
+						this._logger.logError('Mermaid diagram render failed', {
+							document: this._currentDocument?.uri.toString() ?? 'unknown',
+							index: message.index,
+							line: message.line ?? null,
+							details: message.message ?? 'Unknown error',
+						});
+						break;
+					case 'webviewError':
+						this._logger.logError('Webview runtime error', {
+							document: this._currentDocument?.uri.toString() ?? 'unknown',
+							message: message.message ?? 'Unknown error',
+							stack: message.stack ?? 'no-stack',
+						});
+						break;
+					case 'lifecycleEvent':
+						this._logger.logDebug(
+							'WebviewLifecycle',
+							message.status ?? 'unknown',
+							{
+								documentId: message.documentId ?? 'unknown',
+							},
+						);
+						break;
+					case 'changeAppearance':
+						this._handleAppearanceChange(
+							message.appearance as PreviewAppearance,
+						);
+						break;
+					case 'showKeyboardShortcuts':
+						this._showKeyboardShortcuts();
+						break;
+				}
+			},
+			null,
+			this._disposables,
+		);
+
+		// Listen for configuration changes to update panel title
+		vscode.workspace.onDidChangeConfiguration(
+			(e) => {
+				if (e.affectsConfiguration('mermaidLivePreview.panelTitleStyle')) {
+					this._updatePanelTitle();
+				}
+			},
+			null,
+			this._disposables,
+		);
+	}
+
+	private _render(overrideTheme?: string) {
+		if (this._isDisposed) {
+			this._logger.logWarning('Render skipped because panel is disposed');
+			return;
+		}
+
+		if (this._mode === 'single' && this._singleLine !== undefined) {
+			this._renderSingle(this._singleLine, undefined, overrideTheme);
+		} else {
+			this._renderAll(overrideTheme);
+		}
+	}
+
+	private _matches(
+		document: vscode.TextDocument,
+		mode: PreviewMode,
+		lineNumber?: number,
+	): boolean {
+		if (document.uri.toString() !== this._documentUri) {
+			return false;
+		}
+
+		if (mode === 'all') {
+			return this._mode === 'all';
+		}
+
+		if (this._mode !== 'single') {
+			return false;
+		}
+
+		if (typeof lineNumber !== 'number') {
+			return true;
+		}
+
+		if (
+			typeof this._singleBlockStartLine === 'number' &&
+			typeof this._singleBlockEndLine === 'number'
+		) {
+			return (
+				lineNumber >= this._singleBlockStartLine &&
+				lineNumber <= this._singleBlockEndLine
+			);
+		}
+
+		if (typeof this._singleLine === 'number') {
+			return lineNumber === this._singleLine;
+		}
+
+		return false;
+	}
+
+	public updateContent(document: vscode.TextDocument) {
+		if (this._isDisposed) {
+			this._logger.logWarning(
+				'updateContent ignored because panel is disposed',
+			);
+			return;
+		}
+
+		if (document.uri.toString() !== this._documentUri) {
+			return;
+		}
+
+		this._currentDocument = document;
+
+		// Clear existing timeout
+		if (this._updateTimeout) {
+			clearTimeout(this._updateTimeout);
+		}
+
+		// Get refresh delay from config
+		const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+		const delay = config.get<number>('refreshDelay', 500);
+
+		// Debounce updates
+		this._updateTimeout = setTimeout(() => {
+			this._render();
+		}, delay);
+	}
+
+	public handleSelectionChange(
+		document: vscode.TextDocument,
+		lineNumber: number,
+	) {
+		if (this._mode !== 'single') {
+			return;
+		}
+
+		if (document.uri.toString() !== this._documentUri) {
+			return;
+		}
+
+		this._currentDocument = document;
+
+		if (typeof lineNumber !== 'number') {
+			return;
+		}
+
+		const blocks = this._getMermaidBlocks(document);
+		const blockIndex = this._findBlockIndexForLine(
+			document,
+			lineNumber,
+			blocks,
+		);
+
+		if (typeof blockIndex !== 'number') {
+			return;
+		}
+
+		if (typeof this._singleBlockIndex === 'number') {
+			if (blockIndex !== this._singleBlockIndex) {
+				return;
+			}
+
+			this._singleLine = lineNumber;
+			return;
+		}
+
+		this._singleLine = lineNumber;
+		this._singleBlockIndex = blockIndex;
+		this._renderSingle(lineNumber, blocks);
+	}
+
+	private async _handleThemeChange(theme: string) {
+		try {
+			// Persist the selection and update the preview
+			const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+			await config.update(
+				'useVSCodeTheme',
+				false,
+				vscode.ConfigurationTarget.Global,
+			);
+			await config.update('theme', theme, vscode.ConfigurationTarget.Global);
+			this._render(theme);
+		} catch (error) {
+			this._logger.logError(
+				'Failed to update theme configuration',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			vscode.window.showErrorMessage(
+				`Failed to update theme: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	private async _saveThemePreference(theme: string) {
+		try {
+			// Save to workspace or global settings
+			const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+			await config.update('theme', theme, vscode.ConfigurationTarget.Global);
+		} catch (error) {
+			// Silently fail - non-critical operation, user already has visual feedback
+			this._logger.logDebug('SaveThemePreference', 'Failed to persist theme', {
+				theme,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	private async _handleAppearanceChange(appearance: PreviewAppearance) {
+		try {
+			const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+			await config.update(
+				'previewAppearance',
+				appearance,
+				vscode.ConfigurationTarget.Global,
+			);
+			this.refreshAppearance();
+		} catch (error) {
+			this._logger.logError(
+				'Failed to update appearance configuration',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			vscode.window.showErrorMessage(
+				`Failed to update appearance: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	private _showKeyboardShortcuts() {
+		const message = 'Keyboard Shortcuts';
+		const detail = [
+			'Zoom:',
+			'  +  or  =     Zoom in',
+			'  -            Zoom out',
+			'  r            Reset view',
+			'',
+			'Pan:',
+			'  ↑ ↓ ← →      Arrow keys to pan around',
+			'',
+		].join('\n');
+
+		vscode.window.showInformationMessage(message, { modal: true, detail });
+		this._logger.logInfo('Displayed keyboard shortcuts help');
+	}
+
+	private async _handleExportDiagram(
+		data: string,
+		format: string,
+		index: number,
+	) {
+		// Show save dialog
+		const filters: { [name: string]: string[] } = {};
+		if (format === 'svg') {
+			filters['SVG Image'] = ['svg'];
+		} else if (format === 'png') {
+			filters['PNG Image'] = ['png'];
+		} else if (format === 'jpg') {
+			filters['JPEG Image'] = ['jpg', 'jpeg'];
+		}
+
+		const uri = await vscode.window.showSaveDialog({
+			defaultUri: vscode.Uri.file(`mermaid-diagram-${index + 1}.${format}`),
+			filters: filters,
+		});
+
+		if (!uri) {
+			return; // User cancelled
+		}
+
+		// Write the file
+		try {
+			const buffer = Buffer.from(data, 'base64');
+			await vscode.workspace.fs.writeFile(uri, buffer);
+			vscode.window.showInformationMessage(`Diagram exported to ${uri.fsPath}`);
+			this._logger.logInfo('Diagram exported successfully', {
+				path: uri.fsPath,
+			});
+		} catch (error) {
+			this._logger.logError(
+				'Failed to export diagram',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			vscode.window.showErrorMessage(`Failed to export diagram: ${error}`);
+		}
+	}
+
+	private async _handleCopyDiagram(data: string, format: string) {
+		try {
+			// Only SVG uses this path - PNG/JPG are copied directly in webview
+			if (format === 'svg') {
+				await vscode.env.clipboard.writeText(data);
+				vscode.window.showInformationMessage('SVG copied to clipboard');
+				this._logger.logInfo('Diagram copied to clipboard', { format });
+			}
+		} catch (error) {
+			this._logger.logError(
+				'Failed to copy diagram',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			vscode.window.showErrorMessage(`Failed to copy diagram: ${error}`);
+		}
+	}
+
+	private _renderAll(overrideTheme?: string) {
+		const webview = this._panel.webview;
+
+		if (!this._currentDocument) {
+			webview.html = this._getErrorHtml('No document to preview');
+			return;
+		}
+
+		const mermaidCode = this._extractMermaidCode(this._currentDocument);
+
+		if (!mermaidCode) {
+			webview.html = this._getErrorHtml(
+				'No Mermaid diagram found. Wrap your diagram in ```mermaid code blocks.',
+			);
+			return;
+		}
+
+		const { theme, appearance } = this._resolveTheme(overrideTheme);
+		webview.html = this._getHtmlForWebview(
+			webview,
+			mermaidCode,
+			theme,
+			appearance,
+			this._currentDocument?.uri.toString(),
+		);
+		this._updatePanelTitle();
+	}
+
+	private _renderSingle(
+		lineNumber?: number,
+		precomputedBlocks?: MermaidBlock[],
+		overrideTheme?: string,
+	) {
+		const webview = this._panel.webview;
+
+		if (!this._currentDocument) {
+			webview.html = this._getErrorHtml('No document to preview');
+			return;
+		}
+
+		const blocks =
+			precomputedBlocks ?? this._getMermaidBlocks(this._currentDocument);
+		let targetIndex = this._singleBlockIndex;
+
+		if (typeof targetIndex !== 'number' && typeof lineNumber === 'number') {
+			targetIndex = this._findBlockIndexForLine(
+				this._currentDocument,
+				lineNumber,
+				blocks,
+			);
+			this._singleBlockIndex = targetIndex;
+		}
+
+		const targetBlock =
+			typeof targetIndex === 'number' ? blocks[targetIndex] : undefined;
+
+		if (!targetBlock) {
+			this._singleBlockStartLine = undefined;
+			this._singleBlockEndLine = undefined;
+			this._updatePanelTitle();
+			webview.html = this._getErrorHtml(
+				'No Mermaid diagram found at this position.',
+			);
+			return;
+		}
+
+		if (typeof lineNumber === 'number') {
+			this._singleLine = lineNumber;
+		} else if (typeof this._singleLine !== 'number') {
+			this._singleLine = targetBlock.startLine;
+		}
+
+		this._singleBlockStartLine = targetBlock.startLine;
+		this._singleBlockEndLine = targetBlock.endLine;
+
+		const mermaidCode = JSON.stringify([targetBlock.code]);
+		const { theme, appearance } = this._resolveTheme(overrideTheme);
+		webview.html = this._getHtmlForWebview(
+			webview,
+			mermaidCode,
+			theme,
+			appearance,
+			this._currentDocument?.uri.toString(),
+		);
+		this._updatePanelTitle();
+	}
+
+	private _extractMermaidCode(document: vscode.TextDocument): string | null {
+		try {
+			const text = document.getText();
+			const blocks = this._getMermaidBlocks(document, text);
+
+			if (blocks.length === 0) {
+				return null;
+			}
+
+			const diagrams = blocks.map((block) => block.code);
+
+			if (!diagrams.length) {
+				return null;
+			}
+
+			return JSON.stringify(diagrams);
+		} catch (error) {
+			// Only log unexpected errors (JSON.stringify should never fail with our data)
+			this._logger.logError(
+				'Unexpected error extracting Mermaid code',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			return null;
+		}
+	}
+
+	private _findBlockIndexForLine(
+		document: vscode.TextDocument,
+		lineNumber: number,
+		precomputedBlocks?: MermaidBlock[],
+	): number | undefined {
+		const blocks = precomputedBlocks ?? this._getMermaidBlocks(document);
+		const idx = blocks.findIndex(
+			(block) => lineNumber >= block.startLine && lineNumber <= block.endLine,
+		);
+		return idx >= 0 ? idx : undefined;
+	}
+
+	private _getMermaidBlocks(
+		document: vscode.TextDocument,
+		cachedText?: string,
+	): MermaidBlock[] {
+		const cacheKey = document.uri.toString();
+		const cached = this._blockCache.get(cacheKey);
+
+		if (cached && cached.version === document.version) {
+			return cached.blocks;
+		}
+
+		const text = cachedText ?? document.getText();
+		const blocks = this._collectMermaidBlocks(document, text);
+		this._blockCache.set(cacheKey, { version: document.version, blocks });
+		return blocks;
+	}
+
+	private _updatePanelTitle() {
+		if (!this._currentDocument) {
+			return;
+		}
+
+		const lineHint =
+			this._mode === 'single'
+				? (this._singleBlockStartLine ?? this._singleLine)
+				: undefined;
+		this._panel.title = MermaidPreviewPanel._buildPanelTitle(
+			this._currentDocument,
+			this._mode,
+			typeof lineHint === 'number' ? lineHint : undefined,
+		);
+	}
+
+	private _collectMermaidBlocks(
+		document: vscode.TextDocument,
+		text: string,
+	): MermaidBlock[] {
+		try {
+			const blocks: MermaidBlock[] = [];
+
+			// For standalone .mmd or .mermaid files, treat entire content as one diagram
+			if (document.languageId === 'mermaid') {
+				const trimmedCode = text.trim();
+				if (trimmedCode) {
+					blocks.push({
+						code: trimmedCode,
+						startLine: 0,
+						endLine: document.lineCount - 1,
+					});
+				}
+				return blocks;
+			}
+
+			// For markdown files, extract mermaid code blocks
+			const mermaidRegex =
+				/```mermaid[^\S\r\n]*(?:\r?\n)([\s\S]*?)(?:\r?\n)?```/g;
+			let match: RegExpExecArray | null = mermaidRegex.exec(text);
+
+			while (match !== null) {
+				const diagramCode = match[1]?.trim();
+				if (diagramCode) {
+					const startPos = document.positionAt(match.index);
+					const endPos = document.positionAt(match.index + match[0].length);
+					blocks.push({
+						code: diagramCode,
+						startLine: startPos.line,
+						endLine: endPos.line,
+					});
+				}
+				match = mermaidRegex.exec(text);
+			}
+
+			return blocks;
+		} catch (error) {
+			// Log because regex parsing failure is unexpected
+			this._logger.logError(
+				'Unexpected error collecting Mermaid blocks',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			return [];
+		}
+	}
+
+	private _resolveTheme(overrideTheme?: string): {
+		theme: string;
+		appearance: PreviewAppearance;
+	} {
+		const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+		const useVSCodeTheme = config.get<boolean>('useVSCodeTheme', false);
+		const configuredTheme = config.get<string>('theme', 'default');
+		const appearance = config.get<PreviewAppearance>(
+			'previewAppearance',
+			'matchVSCode',
+		);
+
+		let theme = overrideTheme || configuredTheme;
+
+		if (useVSCodeTheme && !overrideTheme) {
+			if (appearance === 'light') {
+				theme = 'default';
+			} else if (appearance === 'dark') {
+				theme = 'dark';
+			} else {
+				const colorTheme = vscode.window.activeColorTheme;
+				theme =
+					colorTheme.kind === vscode.ColorThemeKind.Dark ? 'dark' : 'default';
+			}
+		}
+
+		return { theme, appearance };
+	}
+
+	private _generateNonce(): string {
+		const chars =
+			'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		let result = '';
+		for (let i = 0; i < 32; i++) {
+			result += chars.charAt(Math.floor(Math.random() * chars.length));
+		}
+		return result;
+	}
+
+	private _getAppearanceClass(appearance: PreviewAppearance): string {
+		switch (appearance) {
+			case 'light':
+				return 'appearance-light';
+			case 'dark':
+				return 'appearance-dark';
+			default:
+				return 'appearance-match';
+		}
+	}
+
+	private _getHtmlForWebview(
+		webview: vscode.Webview,
+		mermaidCode: string,
+		theme: string,
+		appearance: PreviewAppearance,
+		documentId?: string,
+	): string {
+		try {
+			const diagrams = JSON.parse(mermaidCode);
+			const escapedDiagrams = diagrams.map((code: string) =>
+				code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$'),
+			);
+			const appearanceClass = this._getAppearanceClass(appearance);
+			const mermaidScriptUri = webview.asWebviewUri(
+				vscode.Uri.joinPath(
+					this._extensionUri,
+					'out',
+					'mermaid',
+					'dist',
+					'mermaid.esm.min.mjs',
+				),
+			);
+
+			const docId = documentId ?? 'unknown';
+			const nonce = this._generateNonce();
+
+			return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -698,7 +876,7 @@ export class MermaidPreviewPanel {
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                .replace(/\"/g, '&quot;');
+                .replace(/"/g, '&quot;');
         }
 
         function formatDiagramError(rawMessage) {
@@ -710,9 +888,9 @@ export class MermaidPreviewPanel {
 
         function renderErrorCardHtml(info) {
             return (
-                '<div class=\"diagram-error\">' +
-                    '<div class=\"diagram-error__title\">Unable to render this diagram</div>' +
-                    '<div class=\"diagram-error__message\">' + escapeHtml(info.message) + '</div>' +
+                '<div class="diagram-error">' +
+                    '<div class="diagram-error__title">Unable to render this diagram</div>' +
+                    '<div class="diagram-error__message">' + escapeHtml(info.message) + '</div>' +
                 '</div>'
             );
         }
@@ -1046,8 +1224,40 @@ export class MermaidPreviewPanel {
             closeAllDropdowns(isOpen ? undefined : menu.id);
             if (!isOpen) {
                 menu.classList.add('show');
+                // Update menu dimensions when opening
+                if (name === 'copy' || name === 'export') {
+                    updateMenuDimensions(name);
+                }
             }
         };
+
+        function updateMenuDimensions(menuType) {
+            const diagramEl = document.getElementById('diagram-' + activeDiagramIndex);
+            const svgEl = diagramEl?.querySelector('svg');
+            if (!svgEl) return;
+
+            const { width, height } = getSvgDimensions(svgEl);
+            const w = Math.round(width);
+            const h = Math.round(height);
+
+            const selector = menuType === 'copy'
+                ? '[data-copy-format][data-copy-scale]'
+                : '[data-export-format][data-export-scale]';
+            const formatAttr = menuType === 'copy' ? 'copyFormat' : 'exportFormat';
+            const scaleAttr = menuType === 'copy' ? 'copyScale' : 'exportScale';
+
+            document.querySelectorAll(selector).forEach(btn => {
+                const format = btn.dataset[formatAttr];
+                const scale = parseInt(btn.dataset[scaleAttr], 10) || 1;
+                if (format === 'svg') {
+                    btn.textContent = 'SVG';
+                } else {
+                    const scaledW = w * scale;
+                    const scaledH = h * scale;
+                    btn.textContent = format.toUpperCase() + ' (' + scaledW + '×' + scaledH + ')';
+                }
+            });
+        }
 
         document.addEventListener('click', (event) => {
             if (!event.target.closest('.dropdown')) {
@@ -1148,6 +1358,65 @@ export class MermaidPreviewPanel {
             });
         }
 
+        async function canvasToBlobWithFormat(canvas, mimeType) {
+            if (canvas.toBlob) {
+                return await new Promise((resolve, reject) => {
+                    canvas.toBlob(blob => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('Failed to create image blob'));
+                        }
+                    }, mimeType, mimeType === 'image/jpeg' ? 0.95 : undefined);
+                });
+            }
+
+            const dataUrl = canvas.toDataURL(mimeType, mimeType === 'image/jpeg' ? 0.95 : undefined);
+            const parts = dataUrl.split(',');
+            const binary = atob(parts[1]);
+            const array = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                array[i] = binary.charCodeAt(i);
+            }
+            return new Blob([array], { type: mimeType });
+        }
+
+        function isClipboardMimeSupported(mimeType) {
+            if (typeof ClipboardItem === 'undefined' || typeof ClipboardItem.supports !== 'function') {
+                // Chromium historically only supported PNG - treat JPEG as unsupported unless API says otherwise
+                return mimeType !== 'image/jpeg';
+            }
+
+            try {
+                return ClipboardItem.supports(mimeType);
+            } catch {
+                return mimeType !== 'image/jpeg';
+            }
+        }
+
+        function isPermissionDeniedError(error) {
+            if (!error) {
+                return false;
+            }
+
+            const name = error.name ?? '';
+            const message = error.message ?? '';
+            return name === 'NotAllowedError' ||
+                name === 'SecurityError' ||
+                /denied/i.test(message);
+        }
+
+        function isDocumentFocusError(error) {
+            if (!error) {
+                return false;
+            }
+
+            const message = typeof error === 'string'
+                ? error
+                : (error.message ?? '');
+            return /document is not focused/i.test(message) || /focus/i.test(message ?? '');
+        }
+
         async function rasterizeSvg(svgEl, format) {
             const { width, height } = getSvgDimensions(svgEl);
             const clonedSvg = svgEl.cloneNode(true);
@@ -1182,6 +1451,39 @@ export class MermaidPreviewPanel {
             return await canvasToBase64(canvas, format === 'jpg' ? 'image/jpeg' : 'image/png');
         }
 
+        async function rasterizeSvgWithScale(svgEl, format, scale) {
+            const { width, height } = getSvgDimensions(svgEl);
+            const clonedSvg = svgEl.cloneNode(true);
+            clonedSvg.setAttribute('width', String(width));
+            clonedSvg.setAttribute('height', String(height));
+
+            const svgData = new XMLSerializer().serializeToString(clonedSvg);
+            const encodedSvg = encodeURIComponent(svgData);
+            const imgSrc = 'data:image/svg+xml;charset=utf-8,' + encodedSvg;
+
+            const img = await loadImage(imgSrc);
+            const canvas = document.createElement('canvas');
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            const ctx = canvas.getContext('2d');
+
+            if (!ctx) {
+                throw new Error('Unable to acquire canvas context');
+            }
+
+            ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+            if (format === 'jpg') {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+            } else {
+                ctx.clearRect(0, 0, width, height);
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+            return await canvasToBase64(canvas, format === 'jpg' ? 'image/jpeg' : 'image/png');
+        }
+
         function notifyExportError(message, format) {
             vscode.postMessage({
                 command: 'exportError',
@@ -1190,11 +1492,11 @@ export class MermaidPreviewPanel {
             });
         }
 
-        window.exportActiveDiagram = async function(format) {
-            exportDiagram(activeDiagramIndex, format);
+        window.exportActiveDiagram = async function(format, scale = 1) {
+            exportDiagram(activeDiagramIndex, format, scale);
         };
 
-        async function exportDiagram(index, format) {
+        async function exportDiagram(index, format, scale = 1) {
             const diagramEl = document.getElementById('diagram-' + index);
             const svgEl = diagramEl?.querySelector('svg');
             if (!svgEl) {
@@ -1216,7 +1518,7 @@ export class MermaidPreviewPanel {
                     });
                 } else {
                     try {
-                        const base64Data = await rasterizeSvg(svgEl, format);
+                        const base64Data = await rasterizeSvgWithScale(svgEl, format, scale);
                         vscode.postMessage({
                             command: 'exportDiagram',
                             format: format,
@@ -1230,6 +1532,179 @@ export class MermaidPreviewPanel {
             } catch (error) {
                 notifyExportError(error instanceof Error ? error.message : String(error), format);
             }
+        }
+
+        window.copyActiveDiagram = async function(format, scale = 1) {
+            copyDiagram(activeDiagramIndex, format, scale);
+        };
+
+        async function copyDiagram(index, format, scale = 1) {
+            const diagramEl = document.getElementById('diagram-' + index);
+            const svgEl = diagramEl?.querySelector('svg');
+            if (!svgEl) {
+                vscode.postMessage({
+                    command: 'copyError',
+                    format,
+                    error: 'SVG element not found'
+                });
+                return;
+            }
+
+            try {
+                if (format === 'svg') {
+                    // SVG copies as raw text via extension host
+                    const clonedSvg = svgEl.cloneNode(true);
+                    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+                    vscode.postMessage({
+                        command: 'copyDiagram',
+                        format: 'svg',
+                        data: svgData,
+                        index: index
+                    });
+                    return;
+                }
+
+                const clipboardResult = await copyImageToClipboard(svgEl, format, scale);
+
+                if (clipboardResult.kind === 'success') {
+                    vscode.postMessage({
+                        command: 'copySuccess',
+                        format,
+                        actualFormat: clipboardResult.actualFormat
+                    });
+                    return;
+                }
+
+                if (clipboardResult.kind === 'needsFocus') {
+                    const base64Data = await rasterizeSvgWithScale(svgEl, format, scale);
+                    vscode.postMessage({
+                        command: 'copyDiagram',
+                        format: format,
+                        data: base64Data,
+                        index: index
+                    });
+                    return;
+                }
+
+                if (clipboardResult.kind === 'unsupported') {
+                    vscode.postMessage({
+                        command: 'copyError',
+                        format,
+                        error: clipboardResult.reason
+                    });
+                    return;
+                }
+
+                if (clipboardResult.kind === 'permissionDenied') {
+                    vscode.postMessage({
+                        command: 'copyError',
+                        format,
+                        error: clipboardResult.reason || 'Clipboard access denied. Try using Export instead.'
+                    });
+                    return;
+                }
+
+                if (clipboardResult.kind === 'unavailable') {
+                    vscode.postMessage({
+                        command: 'copyError',
+                        format,
+                        error: clipboardResult.reason || 'Clipboard API not available. Try using Export instead.'
+                    });
+                    return;
+                }
+            } catch (error) {
+                vscode.postMessage({
+                    command: 'copyError',
+                    format,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            }
+        }
+
+        async function copyImageToClipboard(svgEl, format, scale) {
+            if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+                return {
+                    kind: 'unavailable',
+                    reason: 'Clipboard API not available in this environment.'
+                };
+            }
+
+            const { width, height } = getSvgDimensions(svgEl);
+            const clonedSvg = svgEl.cloneNode(true);
+            clonedSvg.setAttribute('width', String(width));
+            clonedSvg.setAttribute('height', String(height));
+
+            const svgData = new XMLSerializer().serializeToString(clonedSvg);
+            const encodedSvg = encodeURIComponent(svgData);
+            const imgSrc = 'data:image/svg+xml;charset=utf-8,' + encodedSvg;
+
+            const img = await loadImage(imgSrc);
+            const canvas = document.createElement('canvas');
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            const ctx = canvas.getContext('2d');
+
+            if (!ctx) {
+                throw new Error('Unable to acquire canvas context');
+            }
+
+            ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+            if (format === 'jpg') {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+            } else {
+                ctx.clearRect(0, 0, width, height);
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const mimeCandidates = format === 'jpg'
+                ? ['image/jpeg', 'image/png']
+                : ['image/png'];
+
+            let lastErrorMessage = '';
+
+            for (const mimeType of mimeCandidates) {
+                if (!isClipboardMimeSupported(mimeType)) {
+                    continue;
+                }
+
+                try {
+                    const blob = await canvasToBlobWithFormat(canvas, mimeType);
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ [mimeType]: blob })
+                    ]);
+                    return {
+                        kind: 'success',
+                        actualFormat: mimeType === 'image/jpeg' ? 'jpg' : 'png'
+                    };
+                } catch (clipboardError) {
+                    if (isDocumentFocusError(clipboardError)) {
+                        const reason = clipboardError instanceof Error
+                            ? clipboardError.message
+                            : String(clipboardError ?? 'Document is not focused.');
+                        return { kind: 'needsFocus', reason };
+                    }
+
+                    if (isPermissionDeniedError(clipboardError)) {
+                        const reason = clipboardError instanceof Error
+                            ? clipboardError.message
+                            : String(clipboardError ?? 'Clipboard access denied.');
+                        return { kind: 'permissionDenied', reason };
+                    }
+                    lastErrorMessage = clipboardError instanceof Error
+                        ? clipboardError.message
+                        : String(clipboardError ?? 'Clipboard write failed');
+                }
+            }
+
+            return {
+                kind: 'unsupported',
+                reason: format === 'jpg'
+                    ? 'Copying JPG images is not supported in this environment. Try PNG or Export.'
+                    : (lastErrorMessage || 'Clipboard does not support this format in this environment.')
+            };
         }
 
         window.addEventListener('error', (event) => {
@@ -1343,7 +1818,7 @@ export class MermaidPreviewPanel {
             ]);
 
             actionMap.forEach((handler, action) => {
-                document.querySelectorAll('[data-action=\"' + action + '\"]').forEach(btn => {
+                document.querySelectorAll('[data-action="' + action + '"]').forEach(btn => {
                     btn.addEventListener('click', handler);
                 });
             });
@@ -1381,8 +1856,17 @@ export class MermaidPreviewPanel {
 
             document.querySelectorAll('[data-export-format]').forEach(btn => {
                 const format = btn.dataset.exportFormat;
+                const scale = parseInt(btn.dataset.exportScale, 10) || 1;
                 if (format) {
-                    btn.addEventListener('click', () => exportActiveDiagram(format));
+                    btn.addEventListener('click', () => exportActiveDiagram(format, scale));
+                }
+            });
+
+            document.querySelectorAll('[data-copy-format]').forEach(btn => {
+                const format = btn.dataset.copyFormat;
+                const scale = parseInt(btn.dataset.copyScale, 10) || 1;
+                if (format) {
+                    btn.addEventListener('click', () => copyActiveDiagram(format, scale));
                 }
             });
         }
@@ -1629,6 +2113,12 @@ export class MermaidPreviewPanel {
             color: var(--vscode-menu-selectionForeground);
         }
 
+        .dropdown-separator {
+            height: 1px;
+            background-color: var(--vscode-menu-border);
+            margin: 4px 0;
+        }
+
         .diagram-indicator {
             font-size: 12px;
             font-weight: 600;
@@ -1727,9 +2217,33 @@ export class MermaidPreviewPanel {
         <div class="toolbar-group dropdown">
             <button class="action-btn" data-dropdown-toggle="export">Export ▾</button>
             <div class="dropdown-menu" id="dropdown-export">
-                <button data-export-format="svg">SVG</button>
-                <button data-export-format="png">PNG</button>
-                <button data-export-format="jpg">JPG</button>
+                <button data-export-format="svg" data-export-scale="1">SVG</button>
+                <div class="dropdown-separator"></div>
+                <button data-export-format="png" data-export-scale="1">PNG</button>
+                <button data-export-format="png" data-export-scale="2">PNG</button>
+                <button data-export-format="png" data-export-scale="3">PNG</button>
+                <button data-export-format="png" data-export-scale="4">PNG</button>
+                <div class="dropdown-separator"></div>
+                <button data-export-format="jpg" data-export-scale="1">JPG</button>
+                <button data-export-format="jpg" data-export-scale="2">JPG</button>
+                <button data-export-format="jpg" data-export-scale="3">JPG</button>
+                <button data-export-format="jpg" data-export-scale="4">JPG</button>
+            </div>
+        </div>
+        <div class="toolbar-group dropdown">
+            <button class="action-btn" data-dropdown-toggle="copy">Copy as ▾</button>
+            <div class="dropdown-menu" id="dropdown-copy">
+                <button data-copy-format="svg" data-copy-scale="1">SVG</button>
+                <div class="dropdown-separator"></div>
+                <button data-copy-format="png" data-copy-scale="1">PNG (1x)</button>
+                <button data-copy-format="png" data-copy-scale="2">PNG (2x)</button>
+                <button data-copy-format="png" data-copy-scale="3">PNG (3x)</button>
+                <button data-copy-format="png" data-copy-scale="4">PNG (4x)</button>
+                <div class="dropdown-separator"></div>
+                <button data-copy-format="jpg" data-copy-scale="1">JPG (1x)</button>
+                <button data-copy-format="jpg" data-copy-scale="2">JPG (2x)</button>
+                <button data-copy-format="jpg" data-copy-scale="3">JPG (3x)</button>
+                <button data-copy-format="jpg" data-copy-scale="4">JPG (4x)</button>
             </div>
         </div>
     </div>
@@ -1740,13 +2254,18 @@ export class MermaidPreviewPanel {
     </div>
 </body>
 </html>`;
-        } catch (error) {
-            this._logger.logError('Failed to generate webview HTML', error instanceof Error ? error : new Error(String(error)));
-            return this._getErrorHtml('Failed to render diagram preview. See output log for details.');
-        }
-    }
-    private _getErrorHtml(message: string): string {
-        return `<!DOCTYPE html>
+		} catch (error) {
+			this._logger.logError(
+				'Failed to generate webview HTML',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			return this._getErrorHtml(
+				'Failed to render diagram preview. See output log for details.',
+			);
+		}
+	}
+	private _getErrorHtml(message: string): string {
+		return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1784,37 +2303,37 @@ export class MermaidPreviewPanel {
     </div>
 </body>
 </html>`;
-    }
+	}
 
-    public refreshAppearance() {
-        if (!this._currentDocument) {
-            return;
-        }
+	public refreshAppearance() {
+		if (!this._currentDocument) {
+			return;
+		}
 
-        this._render();
-    }
+		this._render();
+	}
 
-    public dispose() {
-        if (this._isDisposed) {
-            return;
-        }
+	public dispose() {
+		if (this._isDisposed) {
+			return;
+		}
 
-        this._isDisposed = true;
-        MermaidPreviewPanel._panels.delete(this);
-        this._blockCache.clear();
+		this._isDisposed = true;
+		MermaidPreviewPanel._panels.delete(this);
+		this._blockCache.clear();
 
-        if (this._updateTimeout) {
-            clearTimeout(this._updateTimeout);
-            this._updateTimeout = undefined;
-        }
+		if (this._updateTimeout) {
+			clearTimeout(this._updateTimeout);
+			this._updateTimeout = undefined;
+		}
 
-        this._panel.dispose();
+		this._panel.dispose();
 
-        while (this._disposables.length) {
-            const disposable = this._disposables.pop();
-            if (disposable) {
-                disposable.dispose();
-            }
-        }
-    }
+		while (this._disposables.length) {
+			const disposable = this._disposables.pop();
+			if (disposable) {
+				disposable.dispose();
+			}
+		}
+	}
 }
