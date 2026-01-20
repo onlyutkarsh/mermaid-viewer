@@ -1,3 +1,13 @@
+## [1.3.5](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.4...v1.3.5) (2026-01-20)
+
+
+### Features
+
+* add icon to the Mermaid preview panel ([f2e336a](https://github.com/onlyutkarsh/mermaid-viewer/commit/f2e336a55f22035c7466cbcc6014417f5349f946))
+* add Lefthook configuration and update preview panel icon to be theme-aware ([80ec30b](https://github.com/onlyutkarsh/mermaid-viewer/commit/80ec30b9896a5b8e2b73bf964cf8c196a2723f2c))
+
+
+
 ## [1.3.4](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.3...v1.3.4) (2026-01-15)
 
 
