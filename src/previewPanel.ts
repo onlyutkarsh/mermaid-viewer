@@ -87,7 +87,7 @@ export class MermaidPreviewPanel {
 		title: string,
 		viewColumn: vscode.ViewColumn,
 	): vscode.WebviewPanel {
-		return vscode.window.createWebviewPanel(
+		const panel = vscode.window.createWebviewPanel(
 			'mermaidLivePreview',
 			title,
 			viewColumn,
@@ -100,6 +100,11 @@ export class MermaidPreviewPanel {
 				],
 			},
 		);
+
+		// Set the icon for the preview panel
+		panel.iconPath = vscode.Uri.joinPath(extensionUri, 'images', 'mermaid-gutter.svg');
+
+		return panel;
 	}
 
 	public static createOrShow(
