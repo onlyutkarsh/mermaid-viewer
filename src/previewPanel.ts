@@ -101,8 +101,11 @@ export class MermaidPreviewPanel {
 			},
 		);
 
-		// Set the icon for the preview panel
-		panel.iconPath = vscode.Uri.joinPath(extensionUri, 'images', 'mermaid-gutter.svg');
+		// Set the icon for the preview panel (theme-aware)
+		panel.iconPath = {
+			light: vscode.Uri.joinPath(extensionUri, 'images', 'mermaid-gutter.svg'),
+			dark: vscode.Uri.joinPath(extensionUri, 'images', 'mermaid-gutter.svg'),
+		};
 
 		return panel;
 	}
