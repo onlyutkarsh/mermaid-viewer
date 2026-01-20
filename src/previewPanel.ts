@@ -11,7 +11,19 @@ type MermaidBlock = {
 	endLine: number;
 };
 
+type SerializedPanelState = {
+	documentUri: string;
+	mode: PreviewMode;
+	singleLine?: number;
+};
+
+type WebviewState = {
+	panelState?: SerializedPanelState;
+	docStates?: Record<string, unknown>;
+};
+
 export class MermaidPreviewPanel {
+	public static readonly viewType = 'mermaidLivePreview';
 	private static readonly _panels = new Set<MermaidPreviewPanel>();
 	private readonly _panel: vscode.WebviewPanel;
 	private readonly _extensionUri: vscode.Uri;
@@ -39,6 +51,73 @@ export class MermaidPreviewPanel {
 
 	public static hasOpenPanels(): boolean {
 		return MermaidPreviewPanel._panels.size > 0;
+	}
+
+	public static async revive(
+		panel: vscode.WebviewPanel,
+		extensionUri: vscode.Uri,
+		state: WebviewState | undefined,
+	): Promise<void> {
+		const logger = Logger.instance;
+
+		// Check if we have valid state
+		if (!state?.panelState?.documentUri) {
+			logger.logWarning('Cannot revive panel: missing state or documentUri', {
+				hasState: !!state,
+				hasPanelState: !!state?.panelState,
+				documentUri: state?.panelState?.documentUri,
+			});
+			panel.dispose();
+			return;
+		}
+
+		try {
+			const panelState = state.panelState;
+
+			const document = await vscode.workspace.openTextDocument(
+				vscode.Uri.parse(panelState.documentUri),
+			);
+
+			logger.logInfo('Successfully revived Mermaid preview panel', {
+				documentUri: panelState.documentUri,
+				mode: panelState.mode,
+			});
+
+			new MermaidPreviewPanel(
+				panel,
+				extensionUri,
+				document,
+				panelState.mode,
+				panelState.singleLine,
+			);
+		} catch (error) {
+			logger.logError(
+				'Failed to revive Mermaid preview panel',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			panel.webview.html = `
+				<!DOCTYPE html>
+				<html lang="en">
+				<head>
+					<meta charset="UTF-8">
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<title>Preview Unavailable</title>
+					<style>
+						body {
+							padding: 20px;
+							font-family: var(--vscode-font-family);
+							color: var(--vscode-editor-foreground);
+							background-color: var(--vscode-editor-background);
+						}
+					</style>
+				</head>
+				<body>
+					<h2>Preview Unavailable</h2>
+					<p>The document for this preview could not be loaded. It may have been moved or deleted.</p>
+				</body>
+				</html>
+			`;
+		}
 	}
 
 	private static _findMatchingPanel(
@@ -88,7 +167,7 @@ export class MermaidPreviewPanel {
 		viewColumn: vscode.ViewColumn,
 	): vscode.WebviewPanel {
 		const panel = vscode.window.createWebviewPanel(
-			'mermaidLivePreview',
+			MermaidPreviewPanel.viewType,
 			title,
 			viewColumn,
 			{
@@ -176,6 +255,9 @@ export class MermaidPreviewPanel {
 		this._mode = mode;
 		this._singleLine = singleLine;
 		MermaidPreviewPanel._panels.add(this);
+
+		// Persist state for revival after reload
+		this._updatePanelState();
 
 		// Set the webview's initial html content
 		this._render();
@@ -407,11 +489,13 @@ export class MermaidPreviewPanel {
 			}
 
 			this._singleLine = lineNumber;
+			this._updatePanelState();
 			return;
 		}
 
 		this._singleLine = lineNumber;
 		this._singleBlockIndex = blockIndex;
+		this._updatePanelState();
 		this._renderSingle(lineNumber, blocks);
 	}
 
@@ -704,6 +788,27 @@ export class MermaidPreviewPanel {
 		);
 	}
 
+	private _updatePanelState() {
+		const state: SerializedPanelState = {
+			documentUri: this._documentUri,
+			mode: this._mode,
+			singleLine: this._singleLine,
+		};
+		// Update webview state for serialization
+		this._panel.webview.postMessage({
+			command: 'updateState',
+			state,
+		});
+	}
+
+	public getSerializedState(): SerializedPanelState {
+		return {
+			documentUri: this._documentUri,
+			mode: this._mode,
+			singleLine: this._singleLine,
+		};
+	}
+
 	private _collectMermaidBlocks(
 		document: vscode.TextDocument,
 		text: string,
@@ -845,6 +950,14 @@ export class MermaidPreviewPanel {
         const persistedState = vscode.getState?.() ?? {};
         let docStates = persistedState.docStates ?? {};
         const savedState = docStates[documentId] ?? {};
+
+        // Initialize panel state for restoration after reload
+        let panelState = persistedState.panelState ?? {
+            documentUri: ${JSON.stringify(this._documentUri)},
+            mode: ${JSON.stringify(this._mode)},
+            singleLine: ${this._singleLine ?? 'undefined'}
+        };
+
         const diagrams = ${JSON.stringify(escapedDiagrams)};
         let currentZoom = typeof savedState.currentZoom === 'number' ? savedState.currentZoom : 1.0;
         let panX = typeof savedState.panX === 'number' ? savedState.panX : 0;
@@ -959,7 +1072,7 @@ export class MermaidPreviewPanel {
 
         function saveInteractionState() {
             docStates = { ...docStates, [documentId]: { currentZoom, panX, panY } };
-            vscode.setState({ docStates });
+            vscode.setState({ docStates, panelState });
         }
 
         function initializePanAndZoom() {
@@ -1731,6 +1844,15 @@ export class MermaidPreviewPanel {
             });
         });
 
+        // Listen for messages from the extension
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+            if (message.command === 'updateState') {
+                panelState = message.state;
+                saveInteractionState();
+            }
+        });
+
         window.addEventListener('load', () => {
             stageEl = document.getElementById('diagram-stage');
             setBodyAppearance(currentAppearance);
@@ -1742,6 +1864,8 @@ export class MermaidPreviewPanel {
             scheduleTransform();
             bindToolbarControls();
             bindKeyboardShortcuts();
+            // Save state immediately on load to ensure it persists for restoration
+            saveInteractionState();
             vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
         });
 
@@ -2343,5 +2467,16 @@ export class MermaidPreviewPanel {
 				disposable.dispose();
 			}
 		}
+	}
+}
+
+export class MermaidPreviewSerializer implements vscode.WebviewPanelSerializer {
+	constructor(private readonly _extensionUri: vscode.Uri) {}
+
+	async deserializeWebviewPanel(
+		webviewPanel: vscode.WebviewPanel,
+		state: WebviewState,
+	): Promise<void> {
+		await MermaidPreviewPanel.revive(webviewPanel, this._extensionUri, state);
 	}
 }

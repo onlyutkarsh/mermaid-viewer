@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MermaidFoldingProvider } from './foldingProvider';
-import { MermaidPreviewPanel } from './previewPanel';
+import { MermaidPreviewPanel, MermaidPreviewSerializer } from './previewPanel';
 import { Logger } from './util/logger';
 
 function findMermaidFenceStartLines(document: vscode.TextDocument): number[] {
@@ -148,6 +148,15 @@ export function activate(context: vscode.ExtensionContext) {
 	const logger = Logger.instance;
 	context.subscriptions.push(logger);
 	logger.logInfo('Mermaid Viewer extension activating...');
+
+	// Register webview panel serializer for restoring panels after reload
+	const serializer = new MermaidPreviewSerializer(context.extensionUri);
+	context.subscriptions.push(
+		vscode.window.registerWebviewPanelSerializer(
+			MermaidPreviewPanel.viewType,
+			serializer,
+		),
+	);
 
 	const gutterDecorator = new MermaidGutterDecorator(context.extensionUri);
 	context.subscriptions.push(gutterDecorator);
