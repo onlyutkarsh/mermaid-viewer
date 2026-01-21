@@ -2,7 +2,7 @@
   "name": "mermaid-diagram-lens",
   "displayName": "Mermaid Viewer",
   "description": "View your Mermaid diagrams with independent theming, exports, and focused previews.",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "publisher": "onlyutkarsh",
   "engines": {
     "vscode": "^1.85.0"

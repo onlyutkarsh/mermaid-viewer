@@ -1,3 +1,13 @@
+## [1.3.6](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.5...v1.3.6) (2026-01-21)
+
+
+### Features
+
+* add render timeout configuration for Mermaid diagrams and improve loading indicators ([1d8f46f](https://github.com/onlyutkarsh/mermaid-viewer/commit/1d8f46f1d681d7c0e69910336529948dda034087))
+* add webview panel serializer for restoring Mermaid preview panels after reload ([bc711de](https://github.com/onlyutkarsh/mermaid-viewer/commit/bc711deecd20a954cdbf81d8fbbab01626827d7a))
+
+
+
 ## [1.3.5](https://github.com/onlyutkarsh/mermaid-viewer/compare/v1.3.4...v1.3.5) (2026-01-20)
 
 
