@@ -35,6 +35,7 @@ export class MermaidPreviewPanel {
 	private readonly _documentUri: string;
 	private _disposables: vscode.Disposable[] = [];
 	private _updateTimeout: NodeJS.Timeout | undefined;
+	private _firstUpdateRequestTime: number | undefined;
 	private _currentDocument: vscode.TextDocument | undefined;
 	private _mode: PreviewMode = 'all';
 	private _singleLine: number | undefined;
@@ -439,17 +440,35 @@ export class MermaidPreviewPanel {
 
 		this._currentDocument = document;
 
+		// Get refresh delay from config
+		const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+		const delay = config.get<number>('refreshDelay', 500);
+		const maxDebounceTime = 3000; // Maximum 3 seconds
+
+		// Track when the first update request came in
+		const now = Date.now();
+		if (!this._firstUpdateRequestTime) {
+			this._firstUpdateRequestTime = now;
+		}
+
+		// Calculate time since first update request
+		const timeSinceFirstRequest = now - this._firstUpdateRequestTime;
+
 		// Clear existing timeout
 		if (this._updateTimeout) {
 			clearTimeout(this._updateTimeout);
 		}
 
-		// Get refresh delay from config
-		const config = vscode.workspace.getConfiguration('mermaidLivePreview');
-		const delay = config.get<number>('refreshDelay', 500);
+		// If we've been debouncing for too long, force an update immediately
+		if (timeSinceFirstRequest >= maxDebounceTime) {
+			this._firstUpdateRequestTime = undefined;
+			this._render();
+			return;
+		}
 
-		// Debounce updates
+		// Otherwise, debounce updates normally
 		this._updateTimeout = setTimeout(() => {
+			this._firstUpdateRequestTime = undefined;
 			this._render();
 		}, delay);
 	}
@@ -934,6 +953,8 @@ export class MermaidPreviewPanel {
 
 			const docId = documentId ?? 'unknown';
 			const nonce = this._generateNonce();
+			const config = vscode.workspace.getConfiguration('mermaidLivePreview');
+			const renderTimeout = config.get<number>('renderTimeout', 0);
 
 			return `<!DOCTYPE html>
 <html lang="en">
@@ -959,6 +980,7 @@ export class MermaidPreviewPanel {
         };
 
         const diagrams = ${JSON.stringify(escapedDiagrams)};
+        const renderTimeout = ${renderTimeout};
         let currentZoom = typeof savedState.currentZoom === 'number' ? savedState.currentZoom : 1.0;
         let panX = typeof savedState.panX === 'number' ? savedState.panX : 0;
         let panY = typeof savedState.panY === 'number' ? savedState.panY : 0;
@@ -1032,13 +1054,31 @@ export class MermaidPreviewPanel {
             }
 
             const info = formatDiagramError(error?.message ?? String(error ?? 'Unknown error'));
+            container.classList.remove('loading');
             container.innerHTML = renderErrorCardHtml(info);
             reportRenderError(index, info);
         }
 
+        function withTimeout(promise, timeoutMs, errorMessage) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+                )
+            ]);
+        }
+
         async function validateDiagram(diagram, index) {
             try {
-                await mermaid.parse(diagram);
+                if (renderTimeout > 0) {
+                    await withTimeout(
+                        mermaid.parse(diagram),
+                        renderTimeout,
+                        'Diagram validation timed out after ' + renderTimeout + 'ms'
+                    );
+                } else {
+                    await mermaid.parse(diagram);
+                }
                 return true;
             } catch (error) {
                 showRenderError(index, error);
@@ -1094,28 +1134,77 @@ export class MermaidPreviewPanel {
             const container = document.getElementById('diagrams-container');
             container.innerHTML = '';
 
+            // Check if we have diagrams to render
+            if (!diagrams || diagrams.length === 0) {
+                container.innerHTML = '<div class="diagram-error">' +
+                    '<div class="diagram-error__title">No Mermaid diagrams found</div>' +
+                    '<div class="diagram-error__message">No Mermaid diagrams were found in this document. ' +
+                    'Make sure your diagrams are wrapped in <code>\`\`\`mermaid</code> code blocks.</div>' +
+                    '</div>';
+                vscode.postMessage({
+                    command: 'renderError',
+                    index: 0,
+                    message: 'No diagrams found in document'
+                });
+                return;
+            }
+
             for (let i = 0; i < diagrams.length; i++) {
                 lastParseError = null;
                 const shell = document.createElement('div');
                 shell.className = 'diagram-shell';
                 shell.dataset.index = i.toString();
-                shell.innerHTML = '<div class="diagram-content" id="diagram-' + i + '">Loading...</div>';
+                shell.innerHTML = '<div class="diagram-content loading" id="diagram-' + i + '">' +
+                    '<div class="loading-spinner"></div>' +
+                    '<div class="loading-text">Rendering diagram...</div>' +
+                    '</div>';
                 container.appendChild(shell);
                 shell.addEventListener('click', () => focusDiagram(i));
 
+                // Set a timeout to catch stuck renders (only if configured)
+                let renderTimeoutId;
+                if (renderTimeout > 0) {
+                    renderTimeoutId = setTimeout(() => {
+                        const diagramEl = document.getElementById('diagram-' + i);
+                        if (diagramEl && diagramEl.classList.contains('loading')) {
+                            showRenderError(i, new Error('Diagram rendering timed out after ' + renderTimeout + 'ms. The diagram may be too complex or contain syntax errors.'));
+                        }
+                    }, renderTimeout);
+                }
+
                 if (!(await validateDiagram(diagrams[i], i))) {
+                    if (renderTimeoutId) clearTimeout(renderTimeoutId);
                     continue;
                 }
 
                 try {
-                    const { svg } = await mermaid.render('mermaid-' + i + '-' + Date.now(), diagrams[i]);
+                    let svg;
+                    if (renderTimeout > 0) {
+                        const result = await withTimeout(
+                            mermaid.render('mermaid-' + i + '-' + Date.now(), diagrams[i]),
+                            renderTimeout,
+                            'Diagram rendering timed out after ' + renderTimeout + 'ms. The diagram may be too complex.'
+                        );
+                        svg = result.svg;
+                    } else {
+                        const result = await mermaid.render('mermaid-' + i + '-' + Date.now(), diagrams[i]);
+                        svg = result.svg;
+                    }
+                    if (renderTimeoutId) clearTimeout(renderTimeoutId);
+
                     if (lastParseError) {
                         showRenderError(i, lastParseError);
                         lastParseError = null;
                         continue;
                     }
-                    document.getElementById('diagram-' + i).innerHTML = svg;
+                    const diagramEl = document.getElementById('diagram-' + i);
+                    if (diagramEl) {
+                        diagramEl.classList.remove('loading');
+                        diagramEl.innerHTML = svg;
+                    }
                 } catch (error) {
+                    if (renderTimeoutId) clearTimeout(renderTimeoutId);
+                    console.error('Failed to render diagram ' + i, error);
                     showRenderError(i, error);
                     lastParseError = null;
                 }
@@ -1853,21 +1942,75 @@ export class MermaidPreviewPanel {
             }
         });
 
-        window.addEventListener('load', () => {
-            stageEl = document.getElementById('diagram-stage');
-            setBodyAppearance(currentAppearance);
-            updateDropdownSelection('dropdown-theme', currentTheme);
-            updateDropdownSelection('dropdown-appearance', currentAppearance);
-            updateThemeButtonLabel(currentTheme);
-            renderAllDiagrams();
-            scheduleZoomUpdate();
-            scheduleTransform();
-            bindToolbarControls();
-            bindKeyboardShortcuts();
-            // Save state immediately on load to ensure it persists for restoration
-            saveInteractionState();
-            vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
-        });
+        let renderAttempted = false;
+        const RENDER_TIMEOUT_MS = 10000; // 10 seconds
+
+        function attemptRender() {
+            if (renderAttempted) {
+                return;
+            }
+            renderAttempted = true;
+
+            // Check if Mermaid library is loaded
+            if (typeof mermaid === 'undefined' || !mermaid.initialize || !mermaid.render) {
+                vscode.postMessage({
+                    command: 'webviewError',
+                    message: 'Mermaid library failed to load. Please reload the preview.',
+                    stack: null
+                });
+                const container = document.getElementById('diagrams-container');
+                if (container) {
+                    container.innerHTML = '<div class="diagram-error">' +
+                        '<div class="diagram-error__title">Failed to load Mermaid library</div>' +
+                        '<div class="diagram-error__message">The Mermaid rendering library failed to load. Try reloading the preview or restarting VS Code.</div>' +
+                        '</div>';
+                }
+                return;
+            }
+
+            try {
+                stageEl = document.getElementById('diagram-stage');
+                setBodyAppearance(currentAppearance);
+                updateDropdownSelection('dropdown-theme', currentTheme);
+                updateDropdownSelection('dropdown-appearance', currentAppearance);
+                updateThemeButtonLabel(currentTheme);
+                renderAllDiagrams();
+                scheduleZoomUpdate();
+                scheduleTransform();
+                bindToolbarControls();
+                bindKeyboardShortcuts();
+                // Save state immediately on load to ensure it persists for restoration
+                saveInteractionState();
+                vscode.postMessage({ command: 'lifecycleEvent', status: 'webviewLoaded', documentId });
+            } catch (error) {
+                vscode.postMessage({
+                    command: 'webviewError',
+                    message: 'Failed to initialize preview: ' + (error instanceof Error ? error.message : String(error)),
+                    stack: error instanceof Error ? error.stack : null
+                });
+                const container = document.getElementById('diagrams-container');
+                if (container) {
+                    container.innerHTML = '<div class="diagram-error">' +
+                        '<div class="diagram-error__title">Failed to load preview</div>' +
+                        '<div class="diagram-error__message">An error occurred while initializing the preview. Check the output log for details.</div>' +
+                        '</div>';
+                }
+            }
+        }
+
+        window.addEventListener('load', attemptRender);
+
+        // Fallback: if load event doesn't fire within timeout, try to render anyway
+        setTimeout(() => {
+            if (!renderAttempted) {
+                vscode.postMessage({
+                    command: 'webviewError',
+                    message: 'Load event timeout - attempting fallback render',
+                    stack: null
+                });
+                attemptRender();
+            }
+        }, RENDER_TIMEOUT_MS);
 
         function bindKeyboardShortcuts() {
             document.addEventListener('keydown', (event) => {
@@ -2309,6 +2452,36 @@ export class MermaidPreviewPanel {
         .diagram-error__message {
             margin: 0;
             white-space: pre-wrap;
+        }
+
+        .diagram-content.loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            color: var(--vscode-foreground);
+            opacity: 0.7;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--vscode-foreground);
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .loading-text {
+            font-size: 14px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
