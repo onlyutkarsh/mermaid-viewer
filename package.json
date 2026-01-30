@@ -195,7 +195,7 @@
     "publish:ovsx": "ovsx publish"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.11",
+    "@biomejs/biome": "^2.3.13",
     "@types/node": "^25.0.9",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^3.7.1",
