@@ -356,6 +356,12 @@ export class MermaidPreviewPanel {
 							details: message.message ?? 'Unknown error',
 						});
 						break;
+					case 'renderSuccess':
+						this._logger.logInfo('Mermaid diagram rendered successfully', {
+							document: this._currentDocument?.uri.toString() ?? 'unknown',
+							index: message.index,
+						});
+						break;
 					case 'webviewError':
 						this._logger.logError('Webview runtime error', {
 							document: this._currentDocument?.uri.toString() ?? 'unknown',
@@ -1177,6 +1183,13 @@ export class MermaidPreviewPanel {
             });
         }
 
+        function reportRenderSuccess(index) {
+            vscode.postMessage({
+                command: 'renderSuccess',
+                index
+            });
+        }
+
         function showRenderError(index, error) {
             const container = document.getElementById('diagram-' + index);
             if (!container) {
@@ -1291,6 +1304,7 @@ export class MermaidPreviewPanel {
                     if (diagramEl) {
                         diagramEl.classList.remove('loading');
                         diagramEl.innerHTML = svg;
+                        reportRenderSuccess(i);
                     }
                 } catch (error) {
                     showRenderError(i, error);
@@ -1374,6 +1388,7 @@ export class MermaidPreviewPanel {
                     if (diagramEl) {
                         diagramEl.classList.remove('loading');
                         diagramEl.innerHTML = svg;
+                        reportRenderSuccess(i);
                     }
                 } catch (error) {
                     if (renderTimeoutId) clearTimeout(renderTimeoutId);

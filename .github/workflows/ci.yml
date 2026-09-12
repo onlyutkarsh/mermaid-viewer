@@ -8,6 +8,9 @@ on:
   pull_request:
     branches:
       - main
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,6 +22,14 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    continue-on-error: ${{ matrix.dependency-mode == 'latest-mermaid' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        dependency-mode:
+          - lockfile
+          - latest-mermaid
+    name: Build and test (${{ matrix.dependency-mode }})
 
     steps:
       - name: Checkout repository
@@ -33,13 +44,63 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check for newer Mermaid version
+        if: matrix.dependency-mode == 'latest-mermaid'
+        id: mermaid-version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./node_modules/mermaid/package.json').version")
+          LATEST_VERSION=$(npm view mermaid version)
+          echo "current=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "::warning::Mermaid $LATEST_VERSION is available (current: $CURRENT_VERSION)"
+            {
+              echo "### Mermaid update available"
+              echo "Mermaid **$LATEST_VERSION** is available; the compatibility job is testing it now."
+              echo "Current locked version: **$CURRENT_VERSION**"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Mermaid is up to date at $CURRENT_VERSION"
+          fi
+
+      - name: Upgrade Mermaid to latest
+        if: matrix.dependency-mode == 'latest-mermaid'
+        id: upgrade-mermaid
+        run: npm install --no-save mermaid@latest @mermaid-js/layout-elk@latest
+
       - name: Compile TypeScript
+        id: compile
         run: npm run compile
 
       - name: Lint code
         run: npm run lint
 
+      - name: Test Mermaid rendering
+        id: rendering
+        run: npm run test:rendering
+
+      - name: Report latest Mermaid compatibility
+        if: ${{ always() && matrix.dependency-mode == 'latest-mermaid' }}
+        run: |
+          UPGRADE_OUTCOME="${{ steps.upgrade-mermaid.outcome }}"
+          COMPILE_OUTCOME="${{ steps.compile.outcome }}"
+          RENDERING_OUTCOME="${{ steps.rendering.outcome }}"
+          CURRENT_VERSION="${{ steps.mermaid-version.outputs.current }}"
+          LATEST_VERSION="${{ steps.mermaid-version.outputs.latest }}"
+
+          if [ "$UPGRADE_OUTCOME" = "success" ] && [ "$COMPILE_OUTCOME" = "success" ] && [ "$RENDERING_OUTCOME" = "success" ]; then
+            echo "### Latest Mermaid compatibility: ready to upgrade" >> "$GITHUB_STEP_SUMMARY"
+            echo "Mermaid **$LATEST_VERSION** is available and the extension rendering checks passed." >> "$GITHUB_STEP_SUMMARY"
+            echo "You can upgrade from **$CURRENT_VERSION** and test the preview locally." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Latest Mermaid compatibility: needs local testing" >> "$GITHUB_STEP_SUMMARY"
+            echo "Mermaid **$LATEST_VERSION** is available, but the upgraded compatibility check failed." >> "$GITHUB_STEP_SUMMARY"
+            echo "Test the preview locally before upgrading from **$CURRENT_VERSION**." >> "$GITHUB_STEP_SUMMARY"
+            echo "Upgrade: $UPGRADE_OUTCOME; compile: $COMPILE_OUTCOME; rendering: $RENDERING_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Set dynamic version for CI build
+        if: matrix.dependency-mode == 'lockfile'
         id: version
         run: |
           BASE_VERSION=$(node -p "require('./package.json').version")
@@ -51,11 +112,13 @@ jobs:
           npm version ${CI_VERSION} --no-git-tag-version
 
       - name: Build extension
+        if: matrix.dependency-mode == 'lockfile'
         run: npm run package
 
       - name: Upload VSIX artifact
+        if: matrix.dependency-mode == 'lockfile'
         uses: actions/upload-artifact@v6
         with:
-          name: mermaid-diagram-lens-${{ steps.version.outputs.ci_version }}
+          name: mermaid-diagram-lens-${{ steps.version.outputs.ci_version }}-${{ matrix.dependency-mode }}
           path: "*.vsix"
           retention-days: 90
