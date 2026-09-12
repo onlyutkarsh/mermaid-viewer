@@ -1,3 +1,12 @@
+## [2.3.2](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.1...v2.3.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* **build:** improve prepublish script to clean up output maps ([3d7a22f](https://github.com/onlyutkarsh/mermaid-viewer/commit/3d7a22f37eb592deac29354fefe8bcb7bf1f638b))
+
+
+
 ## [2.3.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.0...v2.3.1) (2026-09-12)
 
 
