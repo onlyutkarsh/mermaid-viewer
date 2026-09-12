@@ -1,3 +1,20 @@
+## [2.3.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.2.1...v2.3.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* **ci:** improve Mermaid compatibility check output ([b488b0b](https://github.com/onlyutkarsh/mermaid-viewer/commit/b488b0bc16e44ec92c69221e829852f2134dfe9e))
+* **ci:** improve upgrade message for Mermaid compatibility check ([91d0517](https://github.com/onlyutkarsh/mermaid-viewer/commit/91d051701c4b3ee10484d33fa73dc28611eedefe))
+* **ci:** pin jsdom for Node 20 ([6bcfde1](https://github.com/onlyutkarsh/mermaid-viewer/commit/6bcfde13e92188a996365fdf9a59fa44bc54f7cd))
+* **deps:** pin @vscode/codicons version to 0.0.45 ([4921d7b](https://github.com/onlyutkarsh/mermaid-viewer/commit/4921d7bce571608404731d7f80de7fd34d09535c))
+
+
+### Features
+
+* **rendering:** add rendering success logging and tests ([b639c19](https://github.com/onlyutkarsh/mermaid-viewer/commit/b639c19e84d486283c6ce950cbee16125fd58988))
+
+
+
 ## [2.2.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.2.0...v2.2.1) (2026-08-07)
 
 
