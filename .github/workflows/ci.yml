@@ -88,7 +88,10 @@ jobs:
           CURRENT_VERSION="${{ steps.mermaid-version.outputs.current }}"
           LATEST_VERSION="${{ steps.mermaid-version.outputs.latest }}"
 
-          if [ "$UPGRADE_OUTCOME" = "success" ] && [ "$COMPILE_OUTCOME" = "success" ] && [ "$RENDERING_OUTCOME" = "success" ]; then
+          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "### Mermaid compatibility: up to date" >> "$GITHUB_STEP_SUMMARY"
+            echo "Mermaid **$CURRENT_VERSION** is already the latest version; no upgrade is needed." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$UPGRADE_OUTCOME" = "success" ] && [ "$COMPILE_OUTCOME" = "success" ] && [ "$RENDERING_OUTCOME" = "success" ]; then
             echo "### Latest Mermaid compatibility: ready to upgrade" >> "$GITHUB_STEP_SUMMARY"
             echo "Mermaid **$LATEST_VERSION** is available and the extension rendering checks passed." >> "$GITHUB_STEP_SUMMARY"
             echo "Upgrade from **$CURRENT_VERSION** to **$LATEST_VERSION**." >> "$GITHUB_STEP_SUMMARY"
