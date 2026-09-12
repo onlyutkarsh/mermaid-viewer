@@ -587,228 +587,159 @@ export async function activate(context: vscode.ExtensionContext) {
 		return editor;
 	};
 
+	async function copyMermaidSourceToClipboard(
+		uri: vscode.Uri | undefined,
+		line: number | undefined,
+		commandName: string,
+		options?: { wrapper?: string },
+	): Promise<void> {
+		try {
+			let document: vscode.TextDocument | undefined;
+			let targetLine = line;
+
+			if (uri) {
+				document = await vscode.workspace.openTextDocument(uri);
+			} else if (vscode.window.activeTextEditor) {
+				document = vscode.window.activeTextEditor.document;
+				if (typeof targetLine !== 'number') {
+					targetLine = vscode.window.activeTextEditor.selection.active.line;
+				}
+			}
+
+			if (!document) {
+				logger.logError(`${commandName} could not resolve a document`);
+				vscode.window.showErrorMessage(
+					'Unable to copy Mermaid diagram: no document context available.',
+				);
+				return;
+			}
+
+			if (
+				document.languageId !== 'markdown' &&
+				document.languageId !== 'mermaid'
+			) {
+				logger.logWarning(`${commandName} invoked for unsupported document`, {
+					languageId: document.languageId,
+					uri: document.uri.toString(),
+				});
+				vscode.window.showInformationMessage(
+					'Mermaid Viewer only works with Markdown and Mermaid files.',
+				);
+				return;
+			}
+
+			if (typeof targetLine !== 'number') {
+				if (document.languageId === 'mermaid') {
+					targetLine = 0;
+				} else {
+					logger.logError(`${commandName} missing line information`);
+					vscode.window.showErrorMessage(
+						'Unable to copy Mermaid diagram: missing line information.',
+					);
+					return;
+				}
+			}
+
+			const config = vscode.workspace.getConfiguration('mermaidViewer');
+			const includeFrontMatter = config.get<boolean>(
+				'copy.includeFrontMatter',
+				true,
+			);
+
+			let rawCode: string | undefined;
+			if (document.languageId === 'mermaid' && !includeFrontMatter) {
+				rawCode = getMermaidBlockWithoutFrontMatter(document);
+			} else {
+				rawCode = getMermaidBlockAtLine(document, targetLine);
+			}
+
+			if (!rawCode) {
+				vscode.window.showInformationMessage(
+					'No Mermaid diagram found at this location to copy.',
+				);
+				return;
+			}
+
+			const wrapper = options?.wrapper ?? '';
+			const textToCopy = (() => {
+				if (!wrapper || wrapper.trim() === '') {
+					return rawCode;
+				}
+				if (!wrapper.includes('{{mermaid-code}}')) {
+					logger.logWarning(
+						'copy.wrapper is set but missing {{mermaid-code}} placeholder; copying plain code',
+						{ wrapper },
+					);
+					vscode.window.showWarningMessage(
+						'Mermaid Viewer: copy.wrapper setting is missing the {{mermaid-code}} placeholder. Copied plain code instead. Update the setting in Preferences.',
+					);
+					return rawCode;
+				}
+
+				const [prefix, suffix] = wrapper.split('{{mermaid-code}}');
+				const trimmedPrefix = prefix.trimEnd();
+				const trimmedSuffix = suffix.trimStart();
+				if (
+					trimmedPrefix &&
+					trimmedSuffix &&
+					rawCode.startsWith(trimmedPrefix) &&
+					rawCode.endsWith(trimmedSuffix)
+				) {
+					return rawCode;
+				}
+
+				return `${prefix}${rawCode}${suffix}`;
+			})();
+
+			await vscode.env.clipboard.writeText(textToCopy);
+			logger.logInfo('Copied Mermaid diagram to clipboard', {
+				command: commandName,
+				line: targetLine,
+				length: textToCopy.length,
+			});
+			vscode.window.showInformationMessage(
+				commandName === 'copyDiagramCodeWithWrapper'
+					? 'Mermaid diagram with wrapper copied to the clipboard.'
+					: 'Mermaid diagram copied to the clipboard.',
+			);
+		} catch (error) {
+			logger.logError(
+				'Failed to copy Mermaid diagram code',
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			vscode.window.showErrorMessage(
+				'Unable to copy Mermaid diagram. See output for details.',
+			);
+		}
+	}
+
 	const copyDiagramCodeCommand = vscode.commands.registerCommand(
 		'mermaidViewer.copyDiagramCode',
 		async (uri: vscode.Uri | undefined, line: number | undefined) => {
-			try {
-				let document: vscode.TextDocument | undefined;
-				let targetLine = line;
-
-				if (uri) {
-					document = await vscode.workspace.openTextDocument(uri);
-				} else if (vscode.window.activeTextEditor) {
-					document = vscode.window.activeTextEditor.document;
-					if (typeof targetLine !== 'number') {
-						targetLine = vscode.window.activeTextEditor.selection.active.line;
-					}
-				}
-
-				if (!document) {
-					logger.logError('copyDiagramCode could not resolve a document');
-					vscode.window.showErrorMessage(
-						'Unable to copy Mermaid diagram: no document context available.',
-					);
-					return;
-				}
-
-				if (
-					document.languageId !== 'markdown' &&
-					document.languageId !== 'mermaid'
-				) {
-					logger.logWarning(
-						'copyDiagramCode invoked for unsupported document',
-						{
-							languageId: document.languageId,
-							uri: document.uri.toString(),
-						},
-					);
-					vscode.window.showInformationMessage(
-						'Mermaid Viewer only works with Markdown and Mermaid files.',
-					);
-					return;
-				}
-
-				if (typeof targetLine !== 'number') {
-					if (document.languageId === 'mermaid') {
-						targetLine = 0;
-					} else {
-						logger.logError('copyDiagramCode missing line information');
-						vscode.window.showErrorMessage(
-							'Unable to copy Mermaid diagram: missing line information.',
-						);
-						return;
-					}
-				}
-
-				const config = vscode.workspace.getConfiguration('mermaidViewer');
-				const includeFrontMatter = config.get<boolean>(
-					'copy.includeFrontMatter',
-					true,
-				);
-
-				let rawCode: string | undefined;
-				if (document.languageId === 'mermaid' && !includeFrontMatter) {
-					rawCode = getMermaidBlockWithoutFrontMatter(document);
-				} else {
-					rawCode = getMermaidBlockAtLine(document, targetLine);
-				}
-
-				if (!rawCode) {
-					vscode.window.showInformationMessage(
-						'No Mermaid diagram found at this location to copy.',
-					);
-					return;
-				}
-
-				await vscode.env.clipboard.writeText(rawCode);
-				logger.logInfo('Copied Mermaid diagram to clipboard', {
-					command: 'copyDiagramCode',
-					line: targetLine,
-					length: rawCode.length,
-				});
-				vscode.window.showInformationMessage(
-					'Mermaid diagram copied to the clipboard.',
-				);
-			} catch (error) {
-				logger.logError(
-					'Failed to copy Mermaid diagram code',
-					error instanceof Error ? error : new Error(String(error)),
-				);
-				vscode.window.showErrorMessage(
-					'Unable to copy Mermaid diagram. See output for details.',
-				);
-			}
+			const config = vscode.workspace.getConfiguration('mermaidViewer');
+			const useWrapper = config.get<boolean>('copy.useWrapper', false);
+			const wrapper = useWrapper
+				? config.get<string>('copy.wrapper', '{{mermaid-code}}')
+				: undefined;
+			await copyMermaidSourceToClipboard(uri, line, 'copyDiagramCode', {
+				wrapper,
+			});
 		},
 	);
 
 	const copyDiagramCodeWithWrapperCommand = vscode.commands.registerCommand(
 		'mermaidViewer.copyDiagramCodeWithWrapper',
 		async (uri: vscode.Uri | undefined, line: number | undefined) => {
-			try {
-				let document: vscode.TextDocument | undefined;
-				let targetLine = line;
-
-				if (uri) {
-					document = await vscode.workspace.openTextDocument(uri);
-				} else if (vscode.window.activeTextEditor) {
-					document = vscode.window.activeTextEditor.document;
-					if (typeof targetLine !== 'number') {
-						targetLine = vscode.window.activeTextEditor.selection.active.line;
-					}
-				}
-
-				if (!document) {
-					logger.logError(
-						'copyDiagramCodeWithWrapper could not resolve a document',
-					);
-					vscode.window.showErrorMessage(
-						'Unable to copy Mermaid diagram: no document context available.',
-					);
-					return;
-				}
-
-				if (
-					document.languageId !== 'markdown' &&
-					document.languageId !== 'mermaid'
-				) {
-					logger.logWarning(
-						'copyDiagramCodeWithWrapper invoked for unsupported document',
-						{
-							languageId: document.languageId,
-							uri: document.uri.toString(),
-						},
-					);
-					vscode.window.showInformationMessage(
-						'Mermaid Viewer only works with Markdown and Mermaid files.',
-					);
-					return;
-				}
-
-				if (typeof targetLine !== 'number') {
-					if (document.languageId === 'mermaid') {
-						targetLine = 0;
-					} else {
-						logger.logError(
-							'copyDiagramCodeWithWrapper missing line information',
-						);
-						vscode.window.showErrorMessage(
-							'Unable to copy Mermaid diagram: missing line information.',
-						);
-						return;
-					}
-				}
-
-				const config = vscode.workspace.getConfiguration('mermaidViewer');
-				const includeFrontMatter = config.get<boolean>(
-					'copy.includeFrontMatter',
-					true,
-				);
-				const wrapper = config.get<string>('copy.wrapper', '{{mermaid-code}}');
-
-				let rawCode: string | undefined;
-				if (document.languageId === 'mermaid' && !includeFrontMatter) {
-					rawCode = getMermaidBlockWithoutFrontMatter(document);
-				} else {
-					rawCode = getMermaidBlockAtLine(document, targetLine);
-				}
-
-				if (!rawCode) {
-					vscode.window.showInformationMessage(
-						'No Mermaid diagram found at this location to copy.',
-					);
-					return;
-				}
-
-				const textToCopy = (() => {
-					if (wrapper.trim() === '') {
-						return rawCode;
-					}
-					if (!wrapper.includes('{{mermaid-code}}')) {
-						logger.logWarning(
-							'copy.wrapper is set but missing {{mermaid-code}} placeholder; copying plain code',
-							{ wrapper },
-						);
-						vscode.window.showWarningMessage(
-							'Mermaid Viewer: copy.wrapper setting is missing the {{mermaid-code}} placeholder. Copied plain code instead. Update the setting in Preferences.',
-						);
-						return rawCode;
-					}
-
-					// Check if code is already wrapped with the same wrapper
-					const [prefix, suffix] = wrapper.split('{{mermaid-code}}');
-					const trimmedPrefix = prefix.trimEnd();
-					const trimmedSuffix = suffix.trimStart();
-					if (
-						trimmedPrefix &&
-						trimmedSuffix &&
-						rawCode.startsWith(trimmedPrefix) &&
-						rawCode.endsWith(trimmedSuffix)
-					) {
-						// Already wrapped, return as-is
-						return rawCode;
-					}
-
-					return wrapper.replace('{{mermaid-code}}', rawCode);
-				})();
-
-				await vscode.env.clipboard.writeText(textToCopy);
-				logger.logInfo('Copied Mermaid diagram with wrapper to clipboard', {
-					command: 'copyDiagramCodeWithWrapper',
-					line: targetLine,
-					length: textToCopy.length,
-				});
-				vscode.window.showInformationMessage(
-					'Mermaid diagram with wrapper copied to the clipboard.',
-				);
-			} catch (error) {
-				logger.logError(
-					'Failed to copy Mermaid diagram code with wrapper',
-					error instanceof Error ? error : new Error(String(error)),
-				);
-				vscode.window.showErrorMessage(
-					'Unable to copy Mermaid diagram. See output for details.',
-				);
-			}
+			const config = vscode.workspace.getConfiguration('mermaidViewer');
+			const wrapper = config.get<string>('copy.wrapper', '{{mermaid-code}}');
+			await copyMermaidSourceToClipboard(
+				uri,
+				line,
+				'copyDiagramCodeWithWrapper',
+				{
+					wrapper,
+				},
+			);
 		},
 	);
 

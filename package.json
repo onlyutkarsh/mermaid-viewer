@@ -223,6 +223,11 @@
           ],
           "description": "Where the toolbar icon opens the Mermaid preview. Individual commands are always available in the Command Palette."
         },
+        "mermaidViewer.copy.useWrapper": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, the default Copy action copies the Mermaid source wrapped with the configured copy.wrapper template. Keep this off to use plain Mermaid source by default; use the context menu action 'Copy with Wrapper' for one-off wrapped copies."
+        },
         "mermaidViewer.copy.wrapper": {
           "type": "string",
           "default": "{{mermaid-code}}",
