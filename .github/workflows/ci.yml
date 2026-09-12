@@ -91,7 +91,7 @@ jobs:
           if [ "$UPGRADE_OUTCOME" = "success" ] && [ "$COMPILE_OUTCOME" = "success" ] && [ "$RENDERING_OUTCOME" = "success" ]; then
             echo "### Latest Mermaid compatibility: ready to upgrade" >> "$GITHUB_STEP_SUMMARY"
             echo "Mermaid **$LATEST_VERSION** is available and the extension rendering checks passed." >> "$GITHUB_STEP_SUMMARY"
-            echo "You can upgrade from **$CURRENT_VERSION** and test the preview locally." >> "$GITHUB_STEP_SUMMARY"
+            echo "Upgrade from **$CURRENT_VERSION** to **$LATEST_VERSION**." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### Latest Mermaid compatibility: needs local testing" >> "$GITHUB_STEP_SUMMARY"
             echo "Mermaid **$LATEST_VERSION** is available, but the upgraded compatibility check failed." >> "$GITHUB_STEP_SUMMARY"
