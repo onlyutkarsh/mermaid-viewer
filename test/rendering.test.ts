@@ -109,6 +109,16 @@ test('Renders core diagram types', async () => {
 	}
 });
 
+test('Renders an ER diagram with the ELK layout', async () => {
+	const elkDiagram = await fsPromises.readFile(
+		path.resolve('examples/er-diagram.mmd'),
+		'utf8',
+	);
+	const { svg } = await mermaid.render('test-elk-er-diagram', elkDiagram);
+
+	assert.ok(svg && svg.includes('<svg'), 'Failed to render the ELK ER diagram');
+});
+
 test('Parses diagrams from repository example files', async () => {
 	const exampleFiles = [
 		'examples/class-diagram.mmd',
