@@ -5,6 +5,7 @@ src/**
 .eslintrc.json
 tsconfig.json
 **/*.map
+out/**/*.map
 **/*.ts
 node_modules
 *.vsix
@@ -24,6 +25,9 @@ SYNTAX-HIGHLIGHTING-SUMMARY.md
 .claude/
 marketplace/
 examples/
+AGENTS.md
+prd.md
+CHANGELOG.md
 biome.json
 lefthook.yml
 assets/icon.pxd

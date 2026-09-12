@@ -257,7 +257,7 @@ if (typeof window !== 'undefined') {
 			document.querySelectorAll<HTMLElement>('code[class*="language-mermaid"]'),
 		)) {
 			const pre = code.parentElement;
-			if (!pre || pre.tagName !== 'PRE') {
+			if (pre?.tagName !== 'PRE') {
 				continue;
 			}
 			const source = (code.textContent || '').trim();

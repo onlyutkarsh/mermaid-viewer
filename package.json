@@ -246,7 +246,7 @@
   },
   "scripts": {
     "prepare": "lefthook install",
-    "vscode:prepublish": "npm run -S esbuild-base -- --minify && npm run esbuild-loader -- --minify && npm run copy-mermaid && npm run copy-codicons",
+    "vscode:prepublish": "npm run -S esbuild-base -- --minify && npm run esbuild-loader -- --minify && npm run copy-mermaid && npm run copy-codicons && rimraf out/**/*.map",
     "esbuild-base": "rimraf out && esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-loader": "esbuild ./src/mermaidLoader.ts --bundle --outfile=out/mermaidLoader.js --format=iife --platform=browser",
     "esbuild": "npm run -S esbuild-base -- --sourcemap && npm run esbuild-loader -- --sourcemap && npm run copy-mermaid && npm run copy-codicons",
@@ -260,7 +260,7 @@
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
-    "package": "vsce package",
+    "package": "rimraf out/**/*.map && vsce package",
     "deploy": "vsce publish",
     "publish:ovsx": "ovsx publish"
   },
