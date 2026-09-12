@@ -1,3 +1,12 @@
+## [2.3.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.0...v2.3.1) (2026-09-12)
+
+
+### Features
+
+* **copy:** add option to copy Mermaid source with configurable wrapper ([a447ad6](https://github.com/onlyutkarsh/mermaid-viewer/commit/a447ad659cb7f182e709ff53c24fc959c7d53f94))
+
+
+
 ## [2.3.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.2.1...v2.3.0) (2026-09-12)
 
 
