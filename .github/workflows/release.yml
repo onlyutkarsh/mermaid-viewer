@@ -15,12 +15,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.actor == 'onlyutkarsh'
     permissions:
       contents: write
+    outputs:
+      vsix_name: ${{ steps.package_name.outputs.vsix_name }}
+      has_changelog: ${{ steps.extract_changelog.outputs.has_changelog }}
+      changelog_content: ${{ steps.extract_changelog.outputs.changelog_content }}
 
     steps:
       - name: Checkout repository
@@ -80,33 +84,6 @@ jobs:
           # Normalize all version headers to use ## (consistent level 2 headers)
           sed -i 's/^# \(\[[0-9]\)/## \1/g' CHANGELOG.md
 
-      - parallel:
-          - name: Publish to Open VSX Registry
-            id: publish_ovsx
-            continue-on-error: true
-            run: npm run publish:ovsx
-            env:
-              OVSX_PAT: ${{ secrets.OVSX_PAT }}
-          - name: Publish to VS Marketplace
-            id: publish_vsmarketplace
-            continue-on-error: true
-            run: npm run deploy
-            env:
-              VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
-
-      - name: Check publishing results
-        run: |
-          if [ "${{ steps.publish_ovsx.outcome }}" == "failure" ]; then
-            echo "⚠️ Open VSX publishing failed (version may already exist)"
-          fi
-          if [ "${{ steps.publish_vsmarketplace.outcome }}" == "failure" ]; then
-            echo "⚠️ VS Marketplace publishing failed (version may already exist)"
-          fi
-          if [ "${{ steps.publish_ovsx.outcome }}" == "failure" ] && [ "${{ steps.publish_vsmarketplace.outcome }}" == "failure" ]; then
-            echo "❌ Both publishing steps failed. Please check the logs."
-            exit 1
-          fi
-
       - name: Commit version bump and changelog
         run: |
           git add package.json package-lock.json CHANGELOG.md
@@ -154,6 +131,61 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
+      - name: Record vsix name
+        id: package_name
+        run: echo "vsix_name=$(ls *.vsix)" >> $GITHUB_OUTPUT
+
+      - name: Upload vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: "*.vsix"
+          retention-days: 90
+
+  publish-marketplace:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: vsmarketplace
+    steps:
+      - name: Download vsix artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix
+
+      - name: Publish to VS Marketplace
+        run: npx vsce publish --packagePath "${{ needs.build.outputs.vsix_name }}"
+        env:
+          VSCE_PAT: ${{ secrets.VS_MARKETPLACE_PAT }}
+
+  publish-ovsx:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: openvsx
+    steps:
+      - name: Download vsix artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix
+
+      - name: Publish to Open VSX Registry
+        run: npx ovsx publish "${{ needs.build.outputs.vsix_name }}"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+  release:
+    needs: [build, publish-marketplace, publish-ovsx]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download vsix artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: vsix
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -162,7 +194,7 @@ jobs:
           draft: false
           prerelease: false
           files: "*.vsix"
-          body: ${{ steps.extract_changelog.outputs.has_changelog == 'true' && steps.extract_changelog.outputs.changelog_content || '' }}
+          body: ${{ needs.build.outputs.has_changelog == 'true' && needs.build.outputs.changelog_content || '' }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -174,14 +206,6 @@ jobs:
           echo "**Version:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** v${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.publish_ovsx.outcome }}" == "success" ]; then
-            echo "✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Open VSX Registry publishing failed or skipped" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [ "${{ steps.publish_vsmarketplace.outcome }}" == "success" ]; then
-            echo "✅ Published to VS Marketplace" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ VS Marketplace publishing failed or skipped" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "✅ Published to Open VSX Registry" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Published to VS Marketplace" >> $GITHUB_STEP_SUMMARY
           echo "✅ GitHub Release created" >> $GITHUB_STEP_SUMMARY
