@@ -1,3 +1,12 @@
+## [2.3.4](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.3...v2.3.4) (2026-09-16)
+
+
+### Bug Fixes
+
+* **syntax:** enhance ER diagram syntax support ([4824aeb](https://github.com/onlyutkarsh/mermaid-viewer/commit/4824aeb5129c908c456948c75a1b0ac82c944c80))
+
+
+
 ## [2.3.3](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.2...v2.3.3) (2026-09-15)
 
 
