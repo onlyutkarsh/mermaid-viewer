@@ -232,6 +232,65 @@ if (typeof window !== 'undefined') {
 		return toolbar;
 	}
 
+	const BLOCK_DISPLAY_TAGS = new Set([
+		'DIV',
+		'P',
+		'LI',
+		'TR',
+		'PRE',
+		'SECTION',
+		'ARTICLE',
+	]);
+
+	/**
+	 * Reconstructs source text from a rendered code element, inserting a line break
+	 * at each block-level child boundary (and each <br>). Some renderers — notably
+	 * Copilot Chat's code block view — lay out one line per block element without a
+	 * literal '\n' text node between them, so plain `.textContent` would merge every
+	 * line into one, breaking Mermaid parsing.
+	 */
+	function extractTextPreservingLines(root: HTMLElement): string {
+		const lines: string[] = [];
+		let current = '';
+
+		function flush(): void {
+			lines.push(current);
+			current = '';
+		}
+
+		function walk(node: Node): void {
+			if (node.nodeType === Node.TEXT_NODE) {
+				current += node.textContent ?? '';
+				return;
+			}
+			if (node.nodeType !== Node.ELEMENT_NODE) {
+				return;
+			}
+			const el = node as HTMLElement;
+			if (el.tagName === 'BR') {
+				flush();
+				return;
+			}
+			const isBlock = BLOCK_DISPLAY_TAGS.has(el.tagName);
+			if (isBlock && current !== '') {
+				flush();
+			}
+			for (const child of Array.from(el.childNodes)) {
+				walk(child);
+			}
+			if (isBlock) {
+				flush();
+			}
+		}
+
+		for (const child of Array.from(root.childNodes)) {
+			walk(child);
+		}
+		flush();
+
+		return lines.map((line) => line.replace(/\s+$/, '')).join('\n');
+	}
+
 	/**
 	 * Finds all extension-owned Mermaid elements OR falls back when extendMarkdownIt hasn't run.
 	 *
@@ -253,6 +312,10 @@ if (typeof window !== 'undefined') {
 		const result: HTMLElement[] = [];
 
 		// Fallback 1: <pre><code class="language-mermaid"> — VS Code default for ```mermaid
+		// Also used by Copilot Chat, which renders each source line as a separate
+		// block-level child (no literal '\n' text nodes), so plain textContent
+		// would concatenate every line together. extractTextPreservingLines()
+		// walks the DOM and reinserts a line break at each block boundary.
 		for (const code of Array.from(
 			document.querySelectorAll<HTMLElement>('code[class*="language-mermaid"]'),
 		)) {
@@ -260,7 +323,7 @@ if (typeof window !== 'undefined') {
 			if (pre?.tagName !== 'PRE') {
 				continue;
 			}
-			const source = (code.textContent || '').trim();
+			const source = extractTextPreservingLines(code).trim();
 			if (!source) {
 				continue;
 			}

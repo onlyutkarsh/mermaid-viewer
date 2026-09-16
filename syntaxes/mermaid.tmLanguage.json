@@ -25,6 +25,9 @@
       "include": "#numbers"
     },
     {
+      "include": "#er-diagram"
+    },
+    {
       "include": "#entity-attributes"
     },
     {
@@ -50,9 +53,6 @@
     },
     {
       "include": "#gantt-specifics"
-    },
-    {
-      "include": "#er-diagram"
     },
     {
       "include": "#mindmap-specifics"
@@ -626,7 +626,7 @@
         },
         {
           "name": "meta.er.entity-definition.mermaid",
-          "begin": "\\b([A-Za-z_][A-Za-z0-9_-]*)\\s*\\{",
+          "begin": "\\b([A-Za-z_][A-Za-z0-9_-]*)(?:\\s*\\[[^\\]]*\\])?(?:\\s*:::[A-Za-z_][A-Za-z0-9_,]*)?\\s*\\{",
           "end": "\\}",
           "beginCaptures": {
             "1": {
@@ -636,7 +636,7 @@
           "patterns": [
             {
               "name": "meta.er.attribute.mermaid",
-              "match": "^\\s*(\\w+)\\s+(\\w+)(?:\\s+(PK|FK|UK|NOT NULL|NULL|UNIQUE|AUTO_INCREMENT))?.*$",
+              "match": "^\\s*([A-Za-z][A-Za-z0-9_-]*(?:\\([^)]*\\)|\\[[^\\]]*\\])?\\??)\\s+(\\*?[A-Za-z_][A-Za-z0-9_-]*)(?:\\s+((?:PK|FK|UK)(?:\\s*,\\s*(?:PK|FK|UK))*|NOT NULL|NULL|UNIQUE|AUTO_INCREMENT))?.*$",
               "captures": {
                 "1": {
                   "name": "storage.type.er-attribute-type.mermaid"
