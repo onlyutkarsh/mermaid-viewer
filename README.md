@@ -7,7 +7,9 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 - **Syntax Highlighting**: Full syntax highlighting for Mermaid diagrams in markdown code blocks and standalone `.mmd`/`.mermaid` files
 - **Live Preview**: Automatic preview updates as you edit, with side-by-side layout and multi-diagram support (navigate between blocks with the toolbar controls)
 - **Theming**: Choose from five built-in themes (default, dark, forest, neutral, base), optionally sync with your VS Code theme, and save your preference as the default
-- **Preview & Navigation**: Toolbar with zoom (`+`/`-`), pan (arrow keys or drag), reset (`R`), reload, appearance override (match VS Code, light, or dark), and an interactive minimap for navigating large diagrams. Works with keyboard shortcuts too
+- **Preview & Navigation**: Toolbar with zoom (`+`/`-`), pan (arrow keys or drag), reset (`R`), reload, appearance override (match VS Code, light, or dark), and an interactive minimap for navigating large diagrams. Works with keyboard shortcuts too.
+- **Annotation Tools**: Draw directly on diagrams with pen (red/blue/green), laser pointer with fade-out, and shape tools (arrows, lines, rectangles, ellipses). Annotations remain available while using Diagram Search and are not altered by search highlighting. Keyboard shortcuts make annotation fast: **P** for pen, **L** for laser, **S** for shapes, **R/G/B** to cycle colors for both pen and shape tools, **E** to erase all
+- **Diagram Search**: Press `Ctrl+F` (`Cmd+F` on macOS) in the preview to find text in entities, labels, notes, messages, and relationships; matching text is highlighted and results cycle with `Enter` or `Shift+Enter`
 - **On-Document Shortcuts**: CodeLens buttons and gutter icons on every Mermaid block let you open a focused single-diagram preview without leaving the editor
 - **Export & Copy Image**: Save or copy any diagram as SVG, PNG (1x-4x), or JPG (1x-4x) from the toolbar - dimensions shown before you export
 - **Copy Source**: Copy raw Mermaid code via CodeLens or command palette
@@ -21,7 +23,6 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 - **Format Diagram**: Tidy a diagram's indentation and whitespace via CodeLens, command palette, or context menu. Standalone `.mmd`/`.mermaid` files also work with VS Code's built-in *Format Document* (`Shift+Alt+F`). Formatting is conservative and works across diagram types - it normalizes nesting indentation (flowchart `subgraph`/`end`, sequence `loop`/`alt`/`opt`/`par`/`critical`, class/state/ER/C4 braces, `block` groups, `gantt`/`journey` sections, multi-line state notes), trims trailing whitespace, and collapses blank lines without altering the diagram. Re-indenting is applied only to recognized structural diagram types; types where indentation is meaningful (`mindmap`, `kanban`, `treemap`, `sankey`) and any unrecognized diagram type are left un-indented on purpose - only trailing whitespace is trimmed
 - **Formatting Diagnostics**: Lines that don't match the formatting rules get a warning squiggle. Use the lightbulb (Quick Fix) on a squiggle to **Fix formatting on this line** (one at a time) or **Format Mermaid diagram** (the whole block at once). Toggle with `mermaidViewer.format.diagnostics`
 - **ELK Layout Support**: Use the [ELK layout engine](https://eclipse.dev/elk/) for complex diagrams by adding `layout: elk` frontmatter - works with ER diagrams, flowcharts, and more. Loaded on demand, so there is no cost for diagrams that use the default layout
-- **Annotation Tools**: Draw directly on diagrams with pen (red/blue/green), laser pointer with fade-out, and shape tools (arrows, lines, rectangles, ellipses). Keyboard shortcuts make annotation fast: **P** for pen, **L** for laser, **S** for shapes, **R/G/B** to cycle colors for both pen and shape tools, **E** to erase all
 - **Offline Friendly**: Bundles Mermaid locally, so previews work without a network connection or account
 
 ## Demo
@@ -60,6 +61,12 @@ In the preview panel toolbar:
 Hover over the map icon in the lower-right corner of the preview to reveal an overview of the active diagram. The outlined area shows the current viewport; click or drag within the minimap to move around large diagrams quickly.
 
 ![Diagram Minimap](https://raw.githubusercontent.com/onlyutkarsh/mermaid-viewer/main/marketplace/minimap.png)
+
+### Searching Entities and Labels
+
+Press `Ctrl+F` (`Cmd+F` on macOS) in the preview to search rendered Mermaid entities, labels, notes, and relationships. Matching text is highlighted across the diagram; press `Enter` or `Shift+Enter` to move between results and focus the active entity or edge.
+
+![Diagram Search](https://raw.githubusercontent.com/onlyutkarsh/mermaid-viewer/main/marketplace/search.png)
 
 ### Copying Diagram Code
 
@@ -152,23 +159,6 @@ Draw geometric shapes: arrows, lines, rectangles, and ellipses.
 #### Exit Annotation Mode
 
 - **Deactivate**: Press `Esc` to exit annotation mode and return to pan/zoom controls
-
-## Migrating from 1.x
-
-Version 2.0 renames the extension's settings and command IDs from the
-`mermaidLivePreview.*` namespace to **`mermaidViewer.*`** so they match the
-extension name. This is a breaking change - the part after the namespace is
-unchanged, so migration is a simple prefix swap:
-
-- **Settings** - in your `settings.json`, rename every `mermaidLivePreview.<key>`
-  to `mermaidViewer.<key>` (e.g. `mermaidLivePreview.theme` -> `mermaidViewer.theme`,
-  `mermaidLivePreview.copy.wrapper` -> `mermaidViewer.copy.wrapper`).
-- **Keybindings** - rebind any custom keybindings from
-  `mermaidLivePreview.<command>` to `mermaidViewer.<command>` (e.g.
-  `mermaidLivePreview.copyDiagramCodeWithWrapper` ->
-  `mermaidViewer.copyDiagramCodeWithWrapper`).
-
-Old `mermaidLivePreview.*` settings will simply be ignored after upgrading.
 
 ## Configuration
 

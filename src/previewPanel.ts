@@ -655,6 +655,12 @@ export class MermaidPreviewPanel {
 			'Pan:',
 			'  ↑ ↓ ← →      Arrow keys to pan around',
 			'',
+			'Find in diagram:',
+			'  Ctrl/Cmd+F   Search diagram text',
+			'  Enter        Next match',
+			'  Shift+Enter  Previous match',
+			'  Esc          Close search',
+			'',
 			'Annotation:',
 			'  p            Pen tool',
 			'  s            Shape tool (cycles arrow → line → rect → ellipse)',
@@ -1133,6 +1139,10 @@ export class MermaidPreviewPanel {
         let pendingTransform = null;
         let pendingZoomUpdate = null;
 		let pendingMinimapUpdate = null;
+        let entitySearchMatches = [];
+        let entitySearchIndex = -1;
+        let entitySearchTimer = null;
+        let entitySearchOriginalMarkup = new Map();
 		let minimapInitialized = false;
 		let minimapPointerId = null;
         let lastParseError = null;
@@ -1444,6 +1454,274 @@ export class MermaidPreviewPanel {
             annotationTransformRevision++;
             scheduleAnnotationRedraw();
             scheduleMinimapUpdate();
+        }
+
+        function closeEntitySearch() {
+            const search = document.getElementById('entity-search');
+            if (search) {
+                search.classList.remove('show');
+            }
+            if (entitySearchTimer) {
+                clearTimeout(entitySearchTimer);
+                entitySearchTimer = null;
+            }
+            clearEntitySearchHighlights();
+            entitySearchMatches = [];
+            entitySearchIndex = -1;
+        }
+
+        function clearEntitySearchHighlights() {
+            entitySearchOriginalMarkup.forEach((markup, element) => {
+                element.innerHTML = markup;
+            });
+            entitySearchOriginalMarkup = new Map();
+            document.querySelectorAll('.entity-search-entity-border').forEach(el => el.remove());
+            document.querySelectorAll('.entity-search-entity-match-active').forEach(el => {
+                el.classList.remove('entity-search-entity-match-active');
+            });
+            document.querySelectorAll('.entity-search-edge-match-active').forEach(el => {
+                el.classList.remove('entity-search-edge-match-active');
+                if (el instanceof HTMLElement) {
+                    el.style.removeProperty('outline');
+                    el.style.removeProperty('outline-offset');
+                }
+            });
+            document.querySelectorAll('.entity-search-edge-border').forEach(el => el.remove());
+        }
+
+        function highlightSearchText(element, query) {
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            const textNodes = [];
+            let textNode;
+            while ((textNode = walker.nextNode())) {
+                textNodes.push(textNode);
+            }
+
+            textNodes.forEach(node => {
+                const value = node.textContent || '';
+                const lowerValue = value.toLowerCase();
+                let offset = 0;
+                let matchIndex = lowerValue.indexOf(query, offset);
+                if (matchIndex < 0) {
+                    return;
+                }
+
+                const fragment = document.createDocumentFragment();
+                const matches = [];
+                while (matchIndex >= 0) {
+                    if (matchIndex > offset) {
+                        fragment.appendChild(document.createTextNode(value.slice(offset, matchIndex)));
+                    }
+                    const matchElement = node.parentElement?.namespaceURI === 'http://www.w3.org/2000/svg'
+                        ? document.createElementNS('http://www.w3.org/2000/svg', 'tspan')
+                        : document.createElement('span');
+                    matchElement.classList.add('entity-search-text-match');
+                    if (matchElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+                        matchElement.style.setProperty('background-color', '#facc15', 'important');
+                        matchElement.style.setProperty('color', '#1f1f1f', 'important');
+                        matchElement.style.setProperty('display', 'inline', 'important');
+                    }
+                    matchElement.textContent = value.slice(matchIndex, matchIndex + query.length);
+                    fragment.appendChild(matchElement);
+                    matches.push(matchElement);
+                    offset = matchIndex + query.length;
+                    matchIndex = lowerValue.indexOf(query, offset);
+                }
+                if (offset < value.length) {
+                    fragment.appendChild(document.createTextNode(value.slice(offset)));
+                }
+                node.parentNode?.replaceChild(fragment, node);
+
+                matches.forEach(matchElement => {
+                    if (matchElement.namespaceURI !== 'http://www.w3.org/2000/svg') {
+                        return;
+                    }
+                    const ownerText = matchElement.closest('text');
+                    const ownerParent = ownerText?.parentElement;
+                    if (!ownerText || !ownerParent || typeof matchElement.getBBox !== 'function') {
+                        return;
+                    }
+                    const box = matchElement.getBBox();
+                    if (!box.width || !box.height) {
+                        return;
+                    }
+                    const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    highlight.classList.add('entity-search-highlight');
+                    highlight.setAttribute('x', String(box.x - 3));
+                    highlight.setAttribute('y', String(box.y - 2));
+                    highlight.setAttribute('width', String(box.width + 6));
+                    highlight.setAttribute('height', String(box.height + 4));
+                    highlight.setAttribute('rx', '2');
+                    ownerParent.insertBefore(highlight, ownerText);
+                });
+            });
+
+        }
+
+        function renderEntitySearchHighlights(query) {
+            document.querySelectorAll('.diagram-content').forEach(element => {
+                if (!entitySearchOriginalMarkup.has(element)) {
+                    entitySearchOriginalMarkup.set(element, element.innerHTML);
+                }
+            });
+            entitySearchMatches.forEach(match => {
+                const entity = match.closest('.node');
+                if (entity) {
+                    entity.classList.remove('entity-search-entity-match');
+                }
+                highlightSearchText(match, query);
+            });
+        }
+
+        function updateEntitySearch(query, centerMatch = true) {
+            const normalizedQuery = query.trim().toLowerCase();
+            clearEntitySearchHighlights();
+            if (!normalizedQuery) {
+                entitySearchMatches = [];
+                entitySearchIndex = -1;
+                const result = document.getElementById('entity-search-result');
+                if (result) {
+                    result.textContent = '';
+                }
+                return;
+            }
+            const nodeMatches = Array.from(document.querySelectorAll('.diagram-content .node')).filter(node =>
+                (node.textContent || '').toLowerCase().includes(normalizedQuery));
+            const nodeSet = new Set(nodeMatches);
+            const additionalMatches = Array.from(document.querySelectorAll(
+                '.diagram-content text, .diagram-content foreignObject *, ' +
+                '.diagram-content .note, .diagram-content .noteText, ' +
+                '.diagram-content .messageText, .diagram-content .labelText'))
+                .filter(element =>
+                    (element.textContent || '').toLowerCase().includes(normalizedQuery) &&
+                    !nodeSet.has(element.closest('.node')) &&
+                    !Array.from(element.children).some(child =>
+                        (child.textContent || '').toLowerCase().includes(normalizedQuery)));
+            entitySearchMatches = [...nodeMatches, ...additionalMatches];
+            entitySearchIndex = entitySearchMatches.length ? 0 : -1;
+            if (normalizedQuery) {
+                renderEntitySearchHighlights(normalizedQuery);
+            }
+            focusEntitySearchMatch(centerMatch);
+        }
+
+        function focusEntitySearchMatch(centerMatch = true) {
+            const result = document.getElementById('entity-search-result');
+            if (!result) {
+                return;
+            }
+            if (entitySearchIndex < 0) {
+                result.textContent = document.getElementById('entity-search-input')?.value.trim()
+                    ? 'No entities found'
+                    : '';
+                return;
+            }
+
+            const match = entitySearchMatches[entitySearchIndex];
+            document.querySelectorAll('.entity-search-entity-border').forEach(el => el.remove());
+            document.querySelectorAll('.entity-search-entity-match-active').forEach(el => {
+                el.classList.remove('entity-search-entity-match-active');
+            });
+            document.querySelectorAll('.entity-search-edge-border').forEach(el => el.remove());
+            document.querySelectorAll('.entity-search-edge-match-active').forEach(el => {
+                el.classList.remove('entity-search-edge-match-active');
+                if (el instanceof HTMLElement) {
+                    el.style.removeProperty('outline');
+                    el.style.removeProperty('outline-offset');
+                }
+            });
+            const entity = match.closest('.node');
+            if (entity && typeof entity.getBBox === 'function') {
+                entity.classList.add('entity-search-entity-match-active');
+                const box = entity.getBBox();
+                const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                border.classList.add('entity-search-entity-border');
+                border.setAttribute('x', String(box.x - 4));
+                border.setAttribute('y', String(box.y - 4));
+                border.setAttribute('width', String(box.width + 8));
+                border.setAttribute('height', String(box.height + 8));
+                border.setAttribute('rx', '2');
+                entity.insertBefore(border, entity.firstChild);
+            }
+            const edge = match.closest('.edgeLabel, .edgePath, .edge, .relation, .messageText');
+            if (edge) {
+                const edgeVisual = edge.namespaceURI === 'http://www.w3.org/2000/svg'
+                    ? edge
+                    : edge.closest('g') ?? edge;
+                edgeVisual.classList.add('entity-search-edge-match-active');
+                if (edgeVisual instanceof HTMLElement) {
+                    edgeVisual.style.setProperty('outline', '3px solid #d97706', 'important');
+                    edgeVisual.style.setProperty('outline-offset', '3px', 'important');
+                } else if (typeof edgeVisual.getBBox === 'function') {
+                    const box = edgeVisual.getBBox();
+                    if (box.width && box.height) {
+                        const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        border.classList.add('entity-search-edge-border');
+                        border.setAttribute('x', String(box.x - 6));
+                        border.setAttribute('y', String(box.y - 4));
+                        border.setAttribute('width', String(box.width + 12));
+                        border.setAttribute('height', String(box.height + 8));
+                        border.setAttribute('rx', '3');
+                        edgeVisual.insertBefore(border, edgeVisual.firstChild);
+                    }
+                }
+            }
+            document.querySelectorAll('.entity-search-highlight, .entity-search-text-match').forEach(el => {
+                el.classList.remove('entity-search-highlight-active', 'entity-search-text-match-active');
+                if (el.classList.contains('entity-search-text-match')) {
+                    el.style.setProperty('background-color', '#facc15', 'important');
+                }
+            });
+            match.querySelectorAll('.entity-search-highlight, .entity-search-text-match').forEach(el => {
+                el.classList.add(el.classList.contains('entity-search-highlight')
+                    ? 'entity-search-highlight-active'
+                    : 'entity-search-text-match-active');
+                if (el.classList.contains('entity-search-text-match')) {
+                    el.style.setProperty('background-color', '#f59e0b', 'important');
+                }
+            });
+            const shell = match.closest('.diagram-shell');
+            const shellIndex = Number(shell?.dataset.index);
+            if (Number.isInteger(shellIndex)) {
+                setActiveDiagram(shellIndex);
+            }
+
+            if (centerMatch) {
+                const matchRect = match.getBoundingClientRect();
+                const viewportRect = viewportEl?.getBoundingClientRect();
+                if (viewportRect && matchRect.width && matchRect.height) {
+                    panX += viewportRect.left + viewportRect.width / 2 - (matchRect.left + matchRect.width / 2);
+                    panY += viewportRect.top + viewportRect.height / 2 - (matchRect.top + matchRect.height / 2);
+                    applyTransform();
+                }
+            }
+            result.textContent = (entitySearchIndex + 1) + ' of ' + entitySearchMatches.length;
+        }
+
+        function openEntitySearch() {
+            const search = document.getElementById('entity-search');
+            const input = document.getElementById('entity-search-input');
+            if (!search || !input) {
+                return;
+            }
+            search.classList.add('show');
+            input.focus();
+            input.select();
+            updateEntitySearch(input.value);
+        }
+
+        function cycleEntitySearch(direction) {
+            if (!entitySearchMatches.length) {
+                return;
+            }
+            document.querySelectorAll('.entity-search-highlight, .entity-search-text-match').forEach(el => {
+                el.classList.remove('entity-search-highlight-active', 'entity-search-text-match-active');
+                if (el.classList.contains('entity-search-text-match')) {
+                    el.style.setProperty('background-color', '#facc15', 'important');
+                }
+            });
+            entitySearchIndex = (entitySearchIndex + direction + entitySearchMatches.length) % entitySearchMatches.length;
+            focusEntitySearchMatch();
         }
 
         function getActiveDiagramSvg() {
@@ -2345,6 +2623,7 @@ export class MermaidPreviewPanel {
                 scheduleTransform();
                 bindToolbarControls();
                 bindKeyboardShortcuts();
+                bindEntitySearchControls();
                 initAnnotationCanvas();
                 // Give the viewport DOM focus immediately so keyboard shortcuts
                 // work without requiring the user to click first
@@ -2386,8 +2665,22 @@ export class MermaidPreviewPanel {
 
         function bindKeyboardShortcuts() {
             document.addEventListener('keydown', (event) => {
+                const search = document.getElementById('entity-search');
+                if (event.key === 'Escape' && search?.classList.contains('show')) {
+                    event.preventDefault();
+                    closeEntitySearch();
+                    viewportEl?.focus({ preventScroll: true });
+                    return;
+                }
+
                 // Ignore keyboard shortcuts when typing in input fields
                 if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+                    return;
+                }
+
+                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+                    event.preventDefault();
+                    openEntitySearch();
                     return;
                 }
 
@@ -2518,7 +2811,7 @@ export class MermaidPreviewPanel {
                         saveInteractionState();
                         break;
                 }
-            });
+            }, true);
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Control' || event.key === 'Meta') {
@@ -2535,6 +2828,33 @@ export class MermaidPreviewPanel {
             // Clear when window loses focus (e.g. Alt+Tab while Ctrl held)
             window.addEventListener('blur', () => {
                 document.body.classList.remove('is-selecting');
+            });
+        }
+
+        function bindEntitySearchControls() {
+            const input = document.getElementById('entity-search-input');
+            const close = document.getElementById('entity-search-close');
+            if (!input || !close) {
+                return;
+            }
+            input.addEventListener('input', () => {
+                if (entitySearchTimer) {
+                    clearTimeout(entitySearchTimer);
+                }
+                entitySearchTimer = setTimeout(() => {
+                    entitySearchTimer = null;
+                    updateEntitySearch(input.value, false);
+                }, 350);
+            });
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.code === 'Enter' || event.code === 'NumpadEnter') {
+                    event.preventDefault();
+                    cycleEntitySearch(event.shiftKey ? -1 : 1);
+                }
+            });
+            close.addEventListener('click', () => {
+                closeEntitySearch();
+                viewportEl?.focus({ preventScroll: true });
             });
         }
 
@@ -3335,6 +3655,124 @@ export class MermaidPreviewPanel {
             z-index: 2;
         }
 
+        #entity-search {
+            display: none;
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            z-index: 10;
+            align-items: center;
+            gap: 6px;
+            width: fit-content;
+            max-width: calc(100% - 32px);
+            margin: 0;
+            padding: 6px 16px;
+            background: var(--preview-toolbar-bg);
+            border: 1px solid var(--preview-toolbar-border);
+            color: var(--preview-toolbar-fg);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+            font-family: var(--vscode-font-family);
+        }
+
+        #entity-search.show {
+            display: flex;
+        }
+
+        #entity-search-input {
+            width: 220px;
+            padding: 5px 7px;
+            color: var(--vscode-editor-foreground);
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--preview-toolbar-border);
+            outline: none;
+            font: inherit;
+        }
+
+        #entity-search-input:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+
+        #entity-search-result {
+            min-width: 78px;
+            color: var(--preview-toolbar-fg);
+            font-size: 11px;
+            text-align: right;
+            opacity: 0.75;
+        }
+
+        #entity-search-close {
+            color: var(--preview-toolbar-fg);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 4px;
+        }
+
+        #entity-search-close:hover {
+            background: var(--preview-toolbar-hover-bg);
+            border-color: var(--preview-toolbar-hover-border);
+        }
+
+        .entity-search-highlight {
+            fill: #facc15 !important;
+            fill-opacity: 0.65 !important;
+            stroke: #eab308 !important;
+            stroke-width: 1px !important;
+            pointer-events: none;
+        }
+
+        .entity-search-highlight-active {
+            fill: #f59e0b !important;
+            fill-opacity: 0.8 !important;
+        }
+
+        .entity-search-entity-border {
+            fill: none !important;
+            stroke: #f59e0b !important;
+            stroke-width: 2px !important;
+            pointer-events: none;
+        }
+
+        .entity-search-entity-match .entity-search-entity-border {
+            stroke: #f59e0b !important;
+        }
+
+        .entity-search-entity-match-active .entity-search-entity-border {
+            stroke: #d97706 !important;
+            stroke-width: 3px !important;
+        }
+
+        .entity-search-edge-match-active path,
+        .entity-search-edge-match-active line,
+        .entity-search-edge-match-active polygon {
+            stroke: #d97706 !important;
+            stroke-width: 3px !important;
+        }
+
+        .entity-search-edge-border {
+            fill: none !important;
+            stroke: #d97706 !important;
+            stroke-width: 3px !important;
+            pointer-events: none;
+        }
+
+        .entity-search-edge-match-active marker path {
+            fill: #d97706 !important;
+        }
+
+        .entity-search-text-match {
+            background-color: #facc15 !important;
+            color: #1f1f1f !important;
+            text-shadow: none !important;
+        }
+
+        .entity-search-text-match-active {
+            background-color: #f59e0b !important;
+        }
+
         .toolbar-group {
             display: flex;
             align-items: center;
@@ -3674,7 +4112,7 @@ export class MermaidPreviewPanel {
         .hover-presence-hint {
             position: absolute;
             right: 0;
-            bottom: -9px;
+            bottom: -7px;
             width: 32px;
             height: 32px;
             display: flex;
@@ -3952,6 +4390,11 @@ export class MermaidPreviewPanel {
         </div>
     </div>
     <div id="viewport-wrapper">
+        <div id="entity-search" role="search" aria-label="Find in diagram">
+            <input id="entity-search-input" type="search" placeholder="Find in diagram" aria-label="Find in diagram">
+            <span id="entity-search-result" aria-live="polite"></span>
+            <button id="entity-search-close" type="button" title="Close search" aria-label="Close search">×</button>
+        </div>
         <div id="diagram-viewport" tabindex="-1">
             <div id="diagram-stage">
                 <div id="diagrams-container"></div>

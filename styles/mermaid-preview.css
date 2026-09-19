@@ -113,6 +113,19 @@
 	display: block;
 }
 
+.mermaid-preview-content foreignObject code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 0.9em;
+	padding: 0.1em 0.25em;
+	border-radius: 3px;
+	background-color: rgba(127, 127, 127, 0.18);
+	color: inherit !important;
+}
+
+.mermaid-preview-content foreignObject code * {
+	color: inherit !important;
+}
+
 /* Dark theme styling */
 .mermaid-preview-wrapper.dark-theme {
 	background-color: #1e1e1e;
