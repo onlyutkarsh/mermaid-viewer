@@ -1,3 +1,13 @@
+## [2.4.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.4...v2.4.0) (2026-09-19)
+
+
+### Features
+
+* **ui:** add entity search functionality in diagram viewer ([9bd81f3](https://github.com/onlyutkarsh/mermaid-viewer/commit/9bd81f32b39ba97ce796d1e67523581238bbd4c8))
+* **ui:** add interactive minimap for navigating large diagrams ([449f7f4](https://github.com/onlyutkarsh/mermaid-viewer/commit/449f7f48cd40ce5aee57be678a3efaeac5526135))
+
+
+
 ## [2.3.4](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.3...v2.3.4) (2026-09-16)
 
 
