@@ -1,3 +1,12 @@
+## [2.4.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.0...v2.4.1) (2026-09-19)
+
+
+### Features
+
+* **copy:** enhance copy with wrapper functionality for Mermaid code ([068e74d](https://github.com/onlyutkarsh/mermaid-viewer/commit/068e74d67a7a5755299071ca4156d9acfe77463e))
+
+
+
 ## [2.4.0](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.3.4...v2.4.0) (2026-09-19)
 
 
