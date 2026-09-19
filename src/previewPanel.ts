@@ -1132,6 +1132,9 @@ export class MermaidPreviewPanel {
         let activePointerId = null;
         let pendingTransform = null;
         let pendingZoomUpdate = null;
+		let pendingMinimapUpdate = null;
+		let minimapInitialized = false;
+		let minimapPointerId = null;
         let lastParseError = null;
         let annotationMode = 'none'; // hoisted here; full annotation state is declared below
         const THEME_LABELS = {
@@ -1400,6 +1403,8 @@ export class MermaidPreviewPanel {
             scheduleTransform();
             setActiveDiagram(activeDiagramIndex);
             updateDiagramIndicator();
+			initializeMinimap();
+			scheduleMinimapUpdate();
             initializePanAndZoom();
         }
 
@@ -1427,6 +1432,7 @@ export class MermaidPreviewPanel {
             stageEl.style.transform = 'translate(' + roundedPanX + 'px, ' + roundedPanY + 'px)';
             annotationTransformRevision++;
             scheduleAnnotationRedraw();
+			scheduleMinimapUpdate();
         }
 
         function applyZoomScale() {
@@ -1437,6 +1443,122 @@ export class MermaidPreviewPanel {
             document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
             annotationTransformRevision++;
             scheduleAnnotationRedraw();
+            scheduleMinimapUpdate();
+        }
+
+        function getActiveDiagramSvg() {
+            return document.querySelector('#diagram-' + activeDiagramIndex + ' svg');
+        }
+
+        function getMinimapViewBox(svgEl) {
+            const viewBox = svgEl?.viewBox?.baseVal;
+            if (viewBox?.width && viewBox.height) {
+                return { x: viewBox.x, y: viewBox.y, width: viewBox.width, height: viewBox.height };
+            }
+
+            const dimensions = svgEl ? getSvgDimensions(svgEl) : { width: 1, height: 1 };
+            return { x: 0, y: 0, width: dimensions.width, height: dimensions.height };
+        }
+
+        function scheduleMinimapUpdate() {
+            if (pendingMinimapUpdate) {
+                return;
+            }
+            pendingMinimapUpdate = requestAnimationFrame(updateMinimap);
+        }
+
+        function updateMinimap() {
+            pendingMinimapUpdate = null;
+            const minimap = document.getElementById('diagram-minimap');
+            const minimapSvg = document.getElementById('minimap-diagram');
+            const minimapViewport = document.getElementById('minimap-viewport');
+            const svgEl = getActiveDiagramSvg();
+            if (!minimap || !minimapSvg || !minimapViewport || !svgEl || !viewportEl) {
+                if (minimap) minimap.hidden = true;
+                return;
+            }
+
+            const viewBox = getMinimapViewBox(svgEl);
+            const source = svgEl.outerHTML;
+            if (minimapSvg.dataset.source !== source) {
+                minimapSvg.dataset.source = source;
+                const viewBoxValue = [viewBox.x, viewBox.y, viewBox.width, viewBox.height].join(' ');
+                document.getElementById('minimap-svg')?.setAttribute('viewBox', viewBoxValue);
+                minimapSvg.setAttribute('viewBox', viewBoxValue);
+                minimapSvg.setAttribute('x', String(viewBox.x));
+                minimapSvg.setAttribute('y', String(viewBox.y));
+                minimapSvg.setAttribute('width', String(viewBox.width));
+                minimapSvg.setAttribute('height', String(viewBox.height));
+                minimapSvg.setAttribute('preserveAspectRatio', 'none');
+                minimapSvg.innerHTML = svgEl.innerHTML;
+            }
+
+            const viewportRect = viewportEl.getBoundingClientRect();
+            const svgRect = svgEl.getBoundingClientRect();
+            if (!svgRect.width || !svgRect.height) {
+                minimap.hidden = true;
+                return;
+            }
+
+            const visibleLeft = Math.max(viewportRect.left, svgRect.left);
+            const visibleTop = Math.max(viewportRect.top, svgRect.top);
+            const visibleRight = Math.min(viewportRect.right, svgRect.right);
+            const visibleBottom = Math.min(viewportRect.bottom, svgRect.bottom);
+            const toDiagramX = value => viewBox.x + ((value - svgRect.left) / svgRect.width) * viewBox.width;
+            const toDiagramY = value => viewBox.y + ((value - svgRect.top) / svgRect.height) * viewBox.height;
+
+            minimapViewport.setAttribute('x', String(toDiagramX(visibleLeft)));
+            minimapViewport.setAttribute('y', String(toDiagramY(visibleTop)));
+            minimapViewport.setAttribute('width', String(Math.max(0, toDiagramX(visibleRight) - toDiagramX(visibleLeft))));
+            minimapViewport.setAttribute('height', String(Math.max(0, toDiagramY(visibleBottom) - toDiagramY(visibleTop))));
+            minimap.hidden = false;
+        }
+
+        function centerMinimapPoint(event) {
+            const minimapSvg = document.getElementById('minimap-svg');
+            const sourceSvg = getActiveDiagramSvg();
+            if (!minimapSvg || !sourceSvg || !viewportEl) {
+                return;
+            }
+
+            const rect = minimapSvg.getBoundingClientRect();
+            const ratioX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+            const ratioY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+            const sourceRect = sourceSvg.getBoundingClientRect();
+            const viewportRect = viewportEl.getBoundingClientRect();
+            panX += (viewportRect.left + viewportRect.width / 2) - (sourceRect.left + sourceRect.width * ratioX);
+            panY += (viewportRect.top + viewportRect.height / 2) - (sourceRect.top + sourceRect.height * ratioY);
+            applyTransform();
+            saveInteractionState();
+        }
+
+        function initializeMinimap() {
+            if (minimapInitialized) {
+                return;
+            }
+            minimapInitialized = true;
+            const minimap = document.getElementById('diagram-minimap');
+            if (!minimap) {
+                return;
+            }
+            minimap.addEventListener('pointerdown', event => {
+                minimapPointerId = event.pointerId;
+                minimap.setPointerCapture?.(event.pointerId);
+                centerMinimapPoint(event);
+                event.preventDefault();
+            });
+            minimap.addEventListener('pointermove', event => {
+                if (event.pointerId === minimapPointerId) {
+                    centerMinimapPoint(event);
+                }
+            });
+            minimap.addEventListener('pointerup', event => {
+                if (event.pointerId === minimapPointerId) {
+                    minimap.releasePointerCapture?.(event.pointerId);
+                    minimapPointerId = null;
+                }
+            });
+            window.addEventListener('resize', scheduleMinimapUpdate);
         }
 
         window.zoomIn = function() {
@@ -1467,7 +1589,7 @@ export class MermaidPreviewPanel {
             if (event.ctrlKey || event.metaKey) {
                 return;
             }
-            if (event.target.closest('.dropdown') || event.target.closest('.toolbar') || event.target.closest('.diagram-error')) {
+            if (event.target.closest('.dropdown') || event.target.closest('.toolbar') || event.target.closest('.diagram-error') || event.target.closest('.minimap-hotspot')) {
                 return;
             }
 
@@ -1531,11 +1653,33 @@ export class MermaidPreviewPanel {
                 return;
             }
             event.preventDefault();
-            if (event.deltaY < 0) {
-                zoomIn();
-            } else {
-                zoomOut();
+            const nextZoom = event.deltaY < 0
+                ? Math.min(currentZoom + 0.1, 5.0)
+                : Math.max(currentZoom - 0.1, 0.5);
+            if (nextZoom === currentZoom) {
+                return;
             }
+
+            const content = event.target.closest('.diagram-content')
+                ?? document.getElementById('diagram-' + activeDiagramIndex);
+            const contentRect = content?.getBoundingClientRect();
+            const zoomRatio = nextZoom / currentZoom;
+
+            document.querySelectorAll('.diagram-content').forEach(el => {
+                el.style.transition = 'none';
+            });
+            if (contentRect) {
+                panX += (event.clientX - contentRect.left) * (1 - zoomRatio);
+                panY += (event.clientY - contentRect.top) * (1 - zoomRatio);
+            }
+            currentZoom = nextZoom;
+            applyZoomScale();
+            applyTransform();
+            void document.body.offsetWidth;
+            document.querySelectorAll('.diagram-content').forEach(el => {
+                el.style.removeProperty('transition');
+            });
+            saveInteractionState();
         }
 
         function updateDiagramIndicator() {
@@ -1560,6 +1704,7 @@ export class MermaidPreviewPanel {
                 shell.classList.toggle('active', idx === activeDiagramIndex);
             });
             updateDiagramIndicator();
+			scheduleMinimapUpdate();
         }
 
         function focusDiagram(index) {
@@ -3517,6 +3662,117 @@ export class MermaidPreviewPanel {
             cursor: none;
         }
 
+        .minimap-hotspot {
+            position: absolute;
+            right: 24px;
+            bottom: 24px;
+            width: 36px;
+            height: 36px;
+            z-index: 6;
+        }
+
+        .hover-presence-hint {
+            position: absolute;
+            right: 0;
+            bottom: -9px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: color-mix(in srgb, var(--vscode-editorWidget-background) 88%, transparent);
+            border: 1px solid var(--vscode-focusBorder, var(--preview-toolbar-border));
+            border-radius: 4px;
+            color: var(--vscode-focusBorder, var(--vscode-button-background));
+            opacity: 0.9;
+            font-size: 19px;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        .hover-presence-hint::before {
+            line-height: 1;
+        }
+
+        .hover-presence-hint.codicon[class*='codicon-'] {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            line-height: 1;
+        }
+
+        #diagram-minimap {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 240px;
+            height: 160px;
+            padding: 4px;
+            background: color-mix(in srgb, var(--vscode-editorWidget-background) 68%, transparent);
+            border: 1px solid var(--vscode-focusBorder, var(--vscode-button-background));
+            border-radius: 4px;
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+            cursor: crosshair;
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(0, 0) scale(0.92);
+            transform-origin: bottom right;
+            transition: opacity 120ms ease, transform 120ms ease;
+        }
+
+        #diagram-minimap[hidden] {
+            display: none;
+        }
+
+        .minimap-hotspot:hover #diagram-minimap,
+        .minimap-hotspot:focus-within #diagram-minimap {
+            opacity: 0.84;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+
+        .minimap-hotspot:hover .hover-presence-hint,
+        .minimap-hotspot:focus-within .hover-presence-hint {
+            opacity: 0;
+        }
+
+        #minimap-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            pointer-events: none;
+        }
+
+        #minimap-diagram {
+            opacity: 1;
+        }
+
+        #minimap-diagram text {
+            display: none;
+        }
+
+        #minimap-diagram rect {
+            fill: color-mix(in srgb, var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder)) 40%, transparent) !important;
+            stroke: var(--vscode-focusBorder, var(--vscode-button-background)) !important;
+            stroke-width: 2px !important;
+            vector-effect: non-scaling-stroke;
+        }
+
+        #minimap-diagram path,
+        #minimap-diagram line {
+            stroke: #334155 !important;
+            stroke-width: 1.5px !important;
+            vector-effect: non-scaling-stroke;
+        }
+
+        #minimap-viewport {
+            fill: color-mix(in srgb, var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder)) 30%, transparent);
+            stroke: var(--vscode-focusBorder, var(--vscode-button-background));
+            stroke-width: 2;
+            vector-effect: non-scaling-stroke;
+        }
+
         .annotation-tool-btn {
             background: transparent;
             border: 1px solid transparent;
@@ -3702,6 +3958,15 @@ export class MermaidPreviewPanel {
             </div>
         </div>
         <canvas id="annotation-canvas" aria-hidden="true"></canvas>
+        <div class="minimap-hotspot" title="Hover to show diagram overview">
+            <span class="hover-presence-hint codicon codicon-map" aria-hidden="true"></span>
+            <div id="diagram-minimap" title="Click or drag to navigate the diagram" hidden>
+                <svg id="minimap-svg" preserveAspectRatio="none" aria-label="Diagram minimap">
+                    <svg id="minimap-diagram" aria-hidden="true"></svg>
+                    <rect id="minimap-viewport" pointer-events="none"></rect>
+                </svg>
+            </div>
+        </div>
     </div>
 </body>
 </html>`;

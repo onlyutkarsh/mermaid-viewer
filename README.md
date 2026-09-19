@@ -7,7 +7,7 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 - **Syntax Highlighting**: Full syntax highlighting for Mermaid diagrams in markdown code blocks and standalone `.mmd`/`.mermaid` files
 - **Live Preview**: Automatic preview updates as you edit, with side-by-side layout and multi-diagram support (navigate between blocks with the toolbar controls)
 - **Theming**: Choose from five built-in themes (default, dark, forest, neutral, base), optionally sync with your VS Code theme, and save your preference as the default
-- **Preview & Navigation**: Toolbar with zoom (`+`/`-`), pan (arrow keys or drag), reset (`R`), reload, and appearance override (match VS Code, light, or dark). Works with keyboard shortcuts too
+- **Preview & Navigation**: Toolbar with zoom (`+`/`-`), pan (arrow keys or drag), reset (`R`), reload, appearance override (match VS Code, light, or dark), and an interactive minimap for navigating large diagrams. Works with keyboard shortcuts too
 - **On-Document Shortcuts**: CodeLens buttons and gutter icons on every Mermaid block let you open a focused single-diagram preview without leaving the editor
 - **Export & Copy Image**: Save or copy any diagram as SVG, PNG (1x-4x), or JPG (1x-4x) from the toolbar - dimensions shown before you export
 - **Copy Source**: Copy raw Mermaid code via CodeLens or command palette
@@ -54,6 +54,12 @@ In the preview panel toolbar:
 - In standalone `.mmd`/`.mermaid` files, the CodeLens appears at the top so you can preview or copy quickly.
 - A subtle **gutter icon** highlights Mermaid block starts in Markdown, so you can spot diagrams quickly (it's a visual cue only; use CodeLens to open preview).
 - The editor toolbar/title icon still opens the multi-diagram preview, so you can see every Mermaid block at once.
+
+### Navigating with the Minimap
+
+Hover over the map icon in the lower-right corner of the preview to reveal an overview of the active diagram. The outlined area shows the current viewport; click or drag within the minimap to move around large diagrams quickly.
+
+![Diagram Minimap](https://raw.githubusercontent.com/onlyutkarsh/mermaid-viewer/main/marketplace/minimap.png)
 
 ### Copying Diagram Code
 
