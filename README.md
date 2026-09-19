@@ -13,7 +13,7 @@ A VSCode extension that gives you a powerful viewer for Mermaid diagrams with in
 - **On-Document Shortcuts**: CodeLens buttons and gutter icons on every Mermaid block let you open a focused single-diagram preview without leaving the editor
 - **Export & Copy Image**: Save or copy any diagram as SVG, PNG (1x-4x), or JPG (1x-4x) from the toolbar - dimensions shown before you export
 - **Copy Source**: Copy raw Mermaid code via CodeLens or command palette
-- **Copy with Wrapper**: Wrap copied code in a configurable template - useful for platforms that require a specific syntax (e.g. Azure DevOps). Configure via `mermaidViewer.copy.wrapper` in settings:
+- **Copy with Wrapper**: Wrap copied code in a configurable template - useful for platforms that require a specific syntax (e.g. Azure DevOps). Configure via `mermaidViewer.copy.wrapper` in settings, using `{{mermaid-code}}` for the diagram code, `{{fileName}}` for the source file's name, and `{{date:FORMAT}}` for the copy date/time:
   ```
   :::mermaid
   {{mermaid-code}}
@@ -74,6 +74,8 @@ Press `Ctrl+F` (`Cmd+F` on macOS) in the preview to search rendered Mermaid enti
 - **Copy with Wrapper**: Wraps the diagram code in the template configured in `mermaidViewer.copy.wrapper` before copying. Useful for pasting into platforms that require a specific syntax, such as Azure DevOps (`::: mermaid ... :::`).
   - Available via right-click context menu, command palette, or a custom keyboard shortcut.
   - If the code already contains the wrapper, it won't be applied twice.
+  - Use `{{fileName}}` in the template to include the source file's name (e.g. useful as a heading or comment above the diagram).
+  - Use `{{date:FORMAT}}` to stamp the copy date/time, with tokens `yyyy`, `yy`, `MMM`, `MM`, `dd`, `HH`, `mm`, `ss` (e.g. `{{date:dd-MMM-yyyy}}`).
   - Configure the wrapper in settings:
     ```json
     "mermaidViewer.copy.wrapper": ":::mermaid\n{{mermaid-code}}\n:::"
@@ -184,7 +186,7 @@ Configure the extension through VSCode settings:
   // Include frontmatter when copying from standalone .mmd/.mermaid files
   "mermaidViewer.copy.includeFrontMatter": true,
 
-  // Template used when copying with wrapper. Use {{mermaid-code}} as the placeholder.
+  // Template used when copying with wrapper. Use {{mermaid-code}} as the diagram code placeholder, {{fileName}} for the source file's name, and {{date:FORMAT}} for the copy date/time (tokens: yyyy, yy, MMM, MM, dd, HH, mm, ss).
   // Example for Azure DevOps:
   "mermaidViewer.copy.wrapper": ":::mermaid\n{{mermaid-code}}\n:::",
 
@@ -247,7 +249,7 @@ This extension contributes the following settings:
 * `mermaidViewer.autoRefresh`: Enable/disable auto-refresh
 * `mermaidViewer.refreshDelay`: Set refresh delay in milliseconds
 * `mermaidViewer.copy.includeFrontMatter`: Include frontmatter when copying from standalone `.mmd`/`.mermaid` files (default: `true`)
-* `mermaidViewer.copy.wrapper`: Template applied by "Copy with Wrapper". Use `{{mermaid-code}}` as the placeholder (default: `{{mermaid-code}}`)
+* `mermaidViewer.copy.wrapper`: Template applied by "Copy with Wrapper". Use `{{mermaid-code}}` as the diagram code placeholder, `{{fileName}}` for the source file's name, and `{{date:FORMAT}}` for the copy date/time (tokens: `yyyy`, `yy`, `MMM`, `MM`, `dd`, `HH`, `mm`, `ss`) (default: `{{mermaid-code}}`)
 
 ## Contributing
 

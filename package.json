@@ -237,7 +237,7 @@
           "editPresentation": "multilineText",
           "pattern": "(^$|.*\\{\\{mermaid-code\\}\\}.*)",
           "patternErrorMessage": "Wrapper must contain {{mermaid-code}} as the placeholder for the diagram code (e.g. :::mermaid\\n{{mermaid-code}}\\n:::)",
-          "description": "Template used when copying Mermaid code. Use {{mermaid-code}} as the placeholder for the diagram code. Example for Azure DevOps: :::mermaid\n{{mermaid-code}}\n:::"
+          "description": "Template used when copying Mermaid code. Use {{mermaid-code}} as the placeholder for the diagram code, {{fileName}} for the source file's name, and {{date:FORMAT}} for the copy date/time (tokens: yyyy, yy, MMM, MM, dd, HH, mm, ss, e.g. {{date:dd-MMM-yyyy}}). Example for Azure DevOps: :::mermaid\n{{mermaid-code}}\n:::"
         },
         "mermaidViewer.format.diagnostics": {
           "type": "boolean",

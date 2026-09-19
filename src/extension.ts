@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { MermaidFoldingProvider } from './foldingProvider';
 import {
@@ -12,6 +13,39 @@ import {
 } from './markdownPlugin';
 import { MermaidPreviewPanel, MermaidPreviewSerializer } from './previewPanel';
 import { Logger } from './util/logger';
+
+const SHORT_MONTH_NAMES = [
+	'Jan',
+	'Feb',
+	'Mar',
+	'Apr',
+	'May',
+	'Jun',
+	'Jul',
+	'Aug',
+	'Sep',
+	'Oct',
+	'Nov',
+	'Dec',
+];
+
+function formatDateToken(pattern: string, date: Date): string {
+	const pad = (value: number, width = 2) => String(value).padStart(width, '0');
+	const tokens: Record<string, string> = {
+		yyyy: String(date.getFullYear()),
+		yy: pad(date.getFullYear() % 100),
+		MMM: SHORT_MONTH_NAMES[date.getMonth()],
+		MM: pad(date.getMonth() + 1),
+		dd: pad(date.getDate()),
+		HH: pad(date.getHours()),
+		mm: pad(date.getMinutes()),
+		ss: pad(date.getSeconds()),
+	};
+	return pattern.replace(
+		/yyyy|yy|MMM|MM|dd|HH|mm|ss/g,
+		(match) => tokens[match],
+	);
+}
 
 function findMermaidBlockStartLines(document: vscode.TextDocument): number[] {
 	const text = document.getText();
@@ -660,7 +694,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const wrapper = options?.wrapper ?? '';
+			const rawWrapper = options?.wrapper ?? '';
+			const fileName = path.basename(document.uri.fsPath);
+			const wrapper = rawWrapper
+				.replace(/\{\{fileName\}\}/g, fileName)
+				.replace(/\{\{date:([^}]+)\}\}/g, (_match, datePattern) =>
+					formatDateToken(datePattern, new Date()),
+				);
 			const textToCopy = (() => {
 				if (!wrapper || wrapper.trim() === '') {
 					return rawCode;
