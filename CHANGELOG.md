@@ -1,3 +1,12 @@
+## [2.4.2](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.1...v2.4.2) (2026-09-24)
+
+
+### Features
+
+* **ui:** add option to open Mermaid preview in the same editor tab ([3f4ecef](https://github.com/onlyutkarsh/mermaid-viewer/commit/3f4ecefc364f573e9f9ff0b77e6ef4b9feef32ad))
+
+
+
 ## [2.4.1](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.0...v2.4.1) (2026-09-19)
 
 
