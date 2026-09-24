@@ -218,10 +218,12 @@
           "default": "side",
           "enum": [
             "side",
+            "same",
             "newWindow"
           ],
           "enumDescriptions": [
             "Open preview beside the editor (default)",
+            "Open preview in the same editor tab group, replacing the current editor",
             "Open preview in a new floating window"
           ],
           "description": "Where the toolbar icon opens the Mermaid preview. Individual commands are always available in the Command Palette."

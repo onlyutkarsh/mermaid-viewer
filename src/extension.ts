@@ -969,6 +969,12 @@ export async function activate(context: vscode.ExtensionContext) {
 				await vscode.commands.executeCommand(
 					'workbench.action.moveEditorToNewWindow',
 				);
+			} else if (location === 'same') {
+				MermaidPreviewPanel.createOrShow(
+					context.extensionUri,
+					editor.document,
+					vscode.ViewColumn.Active,
+				);
 			} else {
 				MermaidPreviewPanel.createOrShow(
 					context.extensionUri,
