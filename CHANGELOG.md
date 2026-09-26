@@ -1,3 +1,12 @@
+## [2.4.3](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.2...v2.4.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **ui:** fix configurable preview location for Mermaid diagrams ([fe25472](https://github.com/onlyutkarsh/mermaid-viewer/commit/fe25472489f9c21c95b62cae604d668f98a74139))
+
+
+
 ## [2.4.2](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.1...v2.4.2) (2026-09-24)
 
 
