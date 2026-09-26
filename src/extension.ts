@@ -1054,12 +1054,22 @@ export async function activate(context: vscode.ExtensionContext) {
 					return;
 				}
 
+				const location = vscode.workspace
+					.getConfiguration('mermaidViewer')
+					.get<string>('defaultPreviewLocation', 'side');
 				MermaidPreviewPanel.createOrShowSingle(
 					context.extensionUri,
 					document,
 					targetLine,
-					vscode.ViewColumn.Beside,
+					location === 'side'
+						? vscode.ViewColumn.Beside
+						: vscode.ViewColumn.Active,
 				);
+				if (location === 'newWindow') {
+					await vscode.commands.executeCommand(
+						'workbench.action.moveEditorToNewWindow',
+					);
+				}
 			} catch (error) {
 				logger.logError(
 					'Failed to open document for showDiagramAtPosition',
