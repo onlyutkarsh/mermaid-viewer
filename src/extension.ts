@@ -1,11 +1,13 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { MermaidDocumentSymbolProvider } from './documentSymbolProvider';
 import { MermaidFoldingProvider } from './foldingProvider';
 import {
 	findMermaidFormatIssues,
 	formatMermaidCode,
 	formatMermaidDocument,
 } from './formatter';
+import { MermaidHoverProvider } from './hoverProvider';
 import {
 	createMarkdownItPlugin,
 	type MarkdownItLike,
@@ -547,6 +549,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				{ language: 'mermaid', scheme: 'untitled' },
 			],
 			foldingProvider,
+		),
+		vscode.languages.registerDocumentSymbolProvider(
+			{ language: 'mermaid' },
+			new MermaidDocumentSymbolProvider(),
+		),
+		vscode.languages.registerHoverProvider(
+			{ language: 'mermaid' },
+			new MermaidHoverProvider(),
 		),
 		vscode.languages.registerCodeActionsProvider(
 			[
