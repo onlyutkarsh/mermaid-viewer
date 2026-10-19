@@ -1,3 +1,12 @@
+## [2.4.4](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.3...v2.4.4) (2026-10-19)
+
+
+### Features
+
+* **symbols:** add document symbol provider for Mermaid diagrams ([554f053](https://github.com/onlyutkarsh/mermaid-viewer/commit/554f05337432aecf2e7705eb155ffe2147c3f4a8))
+
+
+
 ## [2.4.3](https://github.com/onlyutkarsh/mermaid-viewer/compare/v2.4.2...v2.4.3) (2026-09-26)
 
 
