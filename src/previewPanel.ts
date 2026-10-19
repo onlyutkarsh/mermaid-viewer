@@ -90,8 +90,6 @@ export class MermaidPreviewPanel {
 		}
 
 		try {
-			panel.webview.options =
-				MermaidPreviewPanel._getWebviewOptions(extensionUri);
 			const panelState = state.panelState;
 
 			const document = await vscode.workspace.openTextDocument(
@@ -181,18 +179,6 @@ export class MermaidPreviewPanel {
 		return useFileNameOnly ? label : `Mermaid Viewer - ${label}`;
 	}
 
-	private static _getWebviewOptions(
-		extensionUri: vscode.Uri,
-	): vscode.WebviewOptions {
-		return {
-			enableScripts: true,
-			localResourceRoots: [
-				extensionUri,
-				vscode.Uri.joinPath(extensionUri, 'out'),
-			],
-		};
-	}
-
 	private static _createWebviewPanel(
 		extensionUri: vscode.Uri,
 		title: string,
@@ -203,8 +189,12 @@ export class MermaidPreviewPanel {
 			title,
 			viewColumn,
 			{
-				...MermaidPreviewPanel._getWebviewOptions(extensionUri),
+				enableScripts: true,
 				retainContextWhenHidden: true,
+				localResourceRoots: [
+					extensionUri,
+					vscode.Uri.joinPath(extensionUri, 'out'),
+				],
 			},
 		);
 
